@@ -262,8 +262,11 @@ public final class Player {
         generation += 1
         avPlayer.removeAllItems()
         occurrences = [:]
+        preloaded = []
+        lastAVItem = nil
         queue.clear()
         wantsToPlay = false
+        isBuffering = false
         phase = .idle
         duration = 0
         timeAnchor = TimeAnchor(position: 0, date: Date(), rate: 0)
