@@ -57,7 +57,7 @@ public final class Player {
     /// Called when a song starts playing, for history.
     public var onSongStarted: ((Song) -> Void)?
     /// Loads artwork for the lock screen; set by the app, which owns image decoding.
-    public var artworkLoader: (@Sendable (URL) async -> MPMediaItemArtwork?)?
+    public var artworkLoader: (@MainActor (URL) async -> MPMediaItemArtwork?)?
 
     public let music: YouTubeMusic
     private let avPlayer = AVQueuePlayer()
@@ -460,11 +460,11 @@ public final class Player {
     // MARK: - Observing AVFoundation
 
     private func observePlayer() {
-        observations.append(avPlayer.observe(\.currentItem, options: [.new]) { [weak self] player, _ in
+        observations.append(avPlayer.observe(\.currentItem, options: [.new]) { @Sendable [weak self] player, _ in
             let item = player.currentItem.map(ObjectIdentifier.init)
             Task { @MainActor in self?.currentItemChanged(item) }
         })
-        observations.append(avPlayer.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
+        observations.append(avPlayer.observe(\.timeControlStatus, options: [.new]) { @Sendable [weak self] player, _ in
             let status = player.timeControlStatus
             Task { @MainActor in self?.timeControlChanged(status) }
         })
@@ -570,7 +570,7 @@ public final class Player {
 
     /// A broken URL does not always post a failure; the item's status turns failed and the player waits forever.
     private func watchStatus(of item: AVPlayerItem?, id: UUID) {
-        itemStatusObservation = item?.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
+        itemStatusObservation = item?.observe(\.status, options: [.initial, .new]) { @Sendable [weak self] item, _ in
             guard item.status == .failed else { return }
             Task { @MainActor in
                 guard let self, self.queue.current?.id == id, self.occurrences.values.contains(id) else { return }
@@ -682,24 +682,24 @@ public final class Player {
 
     private func configureRemoteCommands() {
         let center = MPRemoteCommandCenter.shared()
-        center.playCommand.addTarget { [weak self] _ in Task { @MainActor in self?.resume() }; return .success }
-        center.pauseCommand.addTarget { [weak self] _ in Task { @MainActor in self?.pause() }; return .success }
-        center.togglePlayPauseCommand.addTarget { [weak self] _ in Task { @MainActor in self?.togglePlayPause() }; return .success }
-        center.nextTrackCommand.addTarget { [weak self] _ in Task { @MainActor in self?.next() }; return .success }
-        center.previousTrackCommand.addTarget { [weak self] _ in Task { @MainActor in self?.previous() }; return .success }
-        center.changePlaybackPositionCommand.addTarget { [weak self] event in
+        center.playCommand.addTarget { @Sendable [weak self] _ in Task { @MainActor in self?.resume() }; return .success }
+        center.pauseCommand.addTarget { @Sendable [weak self] _ in Task { @MainActor in self?.pause() }; return .success }
+        center.togglePlayPauseCommand.addTarget { @Sendable [weak self] _ in Task { @MainActor in self?.togglePlayPause() }; return .success }
+        center.nextTrackCommand.addTarget { @Sendable [weak self] _ in Task { @MainActor in self?.next() }; return .success }
+        center.previousTrackCommand.addTarget { @Sendable [weak self] _ in Task { @MainActor in self?.previous() }; return .success }
+        center.changePlaybackPositionCommand.addTarget { @Sendable [weak self] event in
             guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
             let time = event.positionTime
             Task { @MainActor in self?.seek(to: time) }
             return .success
         }
-        center.changeShuffleModeCommand.addTarget { [weak self] event in
+        center.changeShuffleModeCommand.addTarget { @Sendable [weak self] event in
             guard let event = event as? MPChangeShuffleModeCommandEvent else { return .commandFailed }
             let on = event.shuffleType != .off
             Task { @MainActor in self?.setShuffle(on) }
             return .success
         }
-        center.changeRepeatModeCommand.addTarget { [weak self] event in
+        center.changeRepeatModeCommand.addTarget { @Sendable [weak self] event in
             guard let event = event as? MPChangeRepeatModeCommandEvent else { return .commandFailed }
             let mode: RepeatMode = switch event.repeatType { case .one: .one; case .all: .all; default: .off }
             Task { @MainActor in self?.setRepeat(mode) }
