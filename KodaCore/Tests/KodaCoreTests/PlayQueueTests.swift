@@ -257,3 +257,34 @@ func ids(_ items: some Sequence<QueueItem>) -> [String] { items.map(\.song.id) }
         #expect(ids(back.items) == songs(6).map(\.id))
     }
 }
+
+@Suite struct PlayQueueHistoryTests {
+    private func songs(_ count: Int) -> [Song] {
+        (0..<count).map { Song(id: "s\($0)", title: "\($0)", artistLine: "") }
+    }
+
+    @Test func trimsOnlyOldHistory() throws {
+        var queue = PlayQueue()
+        queue.replace(with: songs(10), startAt: 7)
+        queue.trimHistory(keeping: 3)
+        #expect(queue.items.map(\.song.id) == ["s4", "s5", "s6", "s7", "s8", "s9"])
+        #expect(queue.current?.song.id == "s7")
+        #expect(queue.history.count == 3)
+        // Already within the limit: nothing changes.
+        queue.trimHistory(keeping: 3)
+        #expect(queue.items.count == 6)
+    }
+
+    @Test func trimmedShuffleStillUnshuffles() throws {
+        var queue = PlayQueue()
+        var rng = SeededGenerator(state: 7)
+        queue.replace(with: songs(8), startAt: 0, shuffled: true, using: &rng)
+        for _ in 0..<5 { queue.advance(automatic: false) }
+        let current = try #require(queue.current?.song.id)
+        queue.trimHistory(keeping: 2)
+        queue.setShuffle(false)
+        #expect(queue.current?.song.id == current)
+        #expect(Set(queue.items.map(\.song.id)).count == queue.items.count)
+        #expect(queue.items.count == 5)
+    }
+}

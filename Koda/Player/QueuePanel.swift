@@ -38,6 +38,9 @@ struct QueuePanel: View {
                 }
             }
             .listStyle(.plain)
+            // Shuffle reorders every row; a fresh list draws only the rows on screen,
+            // where diffing would animate a move for each of hundreds of songs.
+            .id(player.queue.isShuffled)
             .scrollEdgeEffectStyle(.soft, for: .all)
             .scrollContentBackground(.hidden)
             .environment(\.editMode, .constant(.active))

@@ -308,6 +308,7 @@ public final class Player {
         occurrences = [:]
         preloaded = []
         lastAVItem = nil
+        queue.trimHistory(keeping: Self.historyLimit)
         guard let item = queue.current else {
             phase = .idle
             return
@@ -538,6 +539,7 @@ public final class Player {
                 return
             }
             retried.remove(id)
+            queue.trimHistory(keeping: Self.historyLimit)
             if let song = queue.current?.song { duration = song.duration ?? duration }
             Task {
                 if let stream = try? await music.stream(for: queue.current?.song.id ?? "") {
@@ -807,19 +809,41 @@ public final class Player {
 
     // MARK: - Persistence
 
-    private struct Saved: Codable {
+    private struct Saved: Codable, Sendable {
         var queue: PlayQueue
         var position: TimeInterval
     }
 
     private var queueFile: URL? { storage?.appending(path: "queue.json") }
+    private let saveClock = SaveClock()
 
-    /// Save the queue so the app reopens where it was.
+    /// How many songs already played stay in the queue, for going back.
+    static let historyLimit = 100
+
+    /// Save the queue so the app reopens where it was. Encoding and writing happen off the
+    /// main thread, a moment later, and only for the newest state: a run of taps on shuffle
+    /// or repeat writes once and never holds up the screen.
     public func persistQueue() {
         lastPersisted = Date()
         guard let queueFile else { return }
+        let version = saveClock.next()
         let saved = Saved(queue: queue, position: position())
-        if let data = try? JSONEncoder().encode(saved) { try? data.write(to: queueFile, options: .atomic) }
+        let clock = saveClock
+        Task.detached(priority: .utility) {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard clock.isNewest(version), let data = try? JSONEncoder().encode(saved), clock.isNewest(version) else { return }
+            try? data.write(to: queueFile, options: .atomic)
+        }
+    }
+
+    /// Save right now, on this thread: for when the app is leaving the screen and may be suspended.
+    public func persistQueueNow() {
+        lastPersisted = Date()
+        guard let queueFile else { return }
+        _ = saveClock.next()
+        if let data = try? JSONEncoder().encode(Saved(queue: queue, position: position())) {
+            try? data.write(to: queueFile, options: .atomic)
+        }
     }
 
     private func persistSettings() {
@@ -838,9 +862,29 @@ public final class Player {
         guard let queueFile, let data = try? Data(contentsOf: queueFile),
               let saved = try? JSONDecoder().decode(Saved.self, from: data), saved.queue.current != nil else { return }
         queue = saved.queue
+        // A queue saved by an older version kept every song ever played.
+        queue.trimHistory(keeping: Self.historyLimit)
         duration = queue.current?.song.duration ?? 0
         timeAnchor = TimeAnchor(position: saved.position, date: Date(), rate: 0)
         phase = .idle
         updateNowPlaying()
+    }
+}
+
+/// Numbers each queue save, so a background write that has been overtaken by a newer
+/// save is dropped instead of overwriting it.
+final class SaveClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var newest = 0
+
+    func next() -> Int {
+        lock.withLock {
+            newest += 1
+            return newest
+        }
+    }
+
+    func isNewest(_ version: Int) -> Bool {
+        lock.withLock { version == newest }
     }
 }

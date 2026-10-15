@@ -99,7 +99,7 @@ final class AppModel {
 
     /// The app is leaving the screen: write what is only kept in memory.
     func saveState() {
-        player.persistQueue()
+        player.persistQueueNow()
         library.flush()
     }
 }

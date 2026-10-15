@@ -143,6 +143,17 @@ public struct PlayQueue: Codable, Sendable, Equatable {
         items.replaceSubrange(base..., with: upcoming)
     }
 
+    /// Forget all but the last `keeping` songs already played, so a long session's queue
+    /// stays small; going back still reaches the recent ones.
+    public mutating func trimHistory(keeping: Int) {
+        guard let currentIndex, currentIndex > keeping else { return }
+        let dropCount = currentIndex - keeping
+        let dropped = Set(items[..<dropCount].map(\.id))
+        items.removeFirst(dropCount)
+        self.currentIndex = currentIndex - dropCount
+        if isShuffled { unshuffledOrder.removeAll { dropped.contains($0) } }
+    }
+
     // MARK: Moving through the queue
 
     /// Make `id` the current song.
