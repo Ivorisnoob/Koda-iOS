@@ -214,7 +214,12 @@ struct MacRootView: View {
         }
         .listStyle(.sidebar)
         .environment(\.defaultMinListRowHeight, 28)
-        .safeAreaInset(edge: .bottom, spacing: 0) { profileButton }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 8) {
+                MacSidebarGlance(openQueue: { model.showNowPlaying(.queue) }, openStats: { section = .stats })
+                profileButton
+            }
+        }
     }
 
     /// A Mac sidebar row: 13-point text, the symbol in the accent colour, and when selected the
@@ -344,5 +349,93 @@ struct MacSidebarLabel: View {
         }
         .contentShape(.rect)
         .onHover { hovering = $0 }
+    }
+}
+
+/// What the foot of the sidebar keeps in view, as the Mac's sidebars do: the next songs in the
+/// queue, each a click away, and today's listening.
+private struct MacSidebarGlance: View {
+    let openQueue: () -> Void
+    let openStats: () -> Void
+    @Environment(Player.self) private var player
+    @Environment(Library.self) private var library
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !player.upcoming.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Up Next")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Show All", action: openQueue)
+                            .font(.system(size: 11, weight: .medium))
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    ForEach(player.upcoming.prefix(3)) { item in
+                        MacUpNextRow(item: item)
+                    }
+                }
+            }
+            Button(action: openStats) {
+                HStack(spacing: 10) {
+                    Image(systemName: "headphones")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 28, height: 28)
+                        .background(Color.accentColor.opacity(0.15), in: .rect(cornerRadius: 7, style: .continuous))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("\(library.listening(on: Date()).listeningText) today")
+                            .font(.system(size: 12, weight: .semibold))
+                        let streak = library.streak()
+                        Text(streak == 0 ? "Play something to start a streak" : streak == 1 ? "1-day streak" : "\(streak)-day streak")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .help("Listening Stats")
+        }
+        .padding(10)
+        .background(.fill.quaternary, in: .rect(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal, 10)
+        .animation(.smooth, value: player.upcoming.prefix(3).map(\.id))
+    }
+}
+
+/// A song waiting in the queue: a click plays it now.
+private struct MacUpNextRow: View {
+    let item: QueueItem
+    @Environment(Player.self) private var player
+    @State private var hovering = false
+
+    var body: some View {
+        Button { player.jump(to: item.id) } label: {
+            HStack(spacing: 8) {
+                ArtworkView(artwork: item.song.artwork, size: 28, cornerRadius: 5)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(item.song.title).font(.system(size: 12, weight: .medium))
+                    Text(item.song.artistLine).font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                .lineLimit(1)
+                Spacer(minLength: 0)
+                if hovering {
+                    Image(systemName: "play.fill").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+                }
+            }
+            .padding(4)
+            .background(.primary.opacity(hovering ? 0.06 : 0), in: .rect(cornerRadius: 7, style: .continuous))
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .contextMenu { SongMenuItems(song: item.song) }
+        .help("Play Now")
     }
 }

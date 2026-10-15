@@ -121,7 +121,10 @@ struct MacHomeView: View {
     /// Your Mix and Quick picks side by side; stacked when the window is too narrow for both.
     @ViewBuilder
     private func top(_ content: HomeModel.Content) -> some View {
-        let picks = Array(content.quickPicks.prefix(width > 1180 ? 12 : 8))
+        // Four rows, as tall as Your Mix beside them, in as many columns as the room allows.
+        let room = width > 900 ? width - MacMetrics.gutter * 2 - 380 - 28 : width - MacMetrics.gutter * 2
+        let columns = max(1, min(3, Int(room / 230)))
+        let picks = Array(content.quickPicks.prefix(columns * 4))
         let layout = width > 900
             ? AnyLayout(HStackLayout(alignment: .top, spacing: 28))
             : AnyLayout(VStackLayout(alignment: .leading, spacing: 28))
@@ -133,7 +136,7 @@ struct MacHomeView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     MacSectionTitle(title: content.quickPicksTitle, subtitle: library.recent.isEmpty ? "Trending now" : "Start with these")
                         .padding(.leading, 6)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 8, alignment: .top)], spacing: 2) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8, alignment: .top), count: columns), spacing: 2) {
                         ForEach(Array(picks.enumerated()), id: \.offset) { index, song in
                             MacSongTile(song: song) { player.play(content.quickPicks, startAt: index) }
                         }
