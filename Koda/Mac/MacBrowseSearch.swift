@@ -260,6 +260,7 @@ struct MacLibraryGrid: View {
     enum Kind { case albums, playlists, artists }
     let kind: Kind
     @Environment(Library.self) private var library
+    @Environment(Player.self) private var player
     @AppStorage("koda.library.sort") private var sort: LibrarySort = .recent
 
     private var title: String {
@@ -286,10 +287,30 @@ struct MacLibraryGrid: View {
                     MacGrid(items: sortedAlbums) { album, side in MacItemCard(item: .album(album), width: side) }
                 }
             case .playlists:
-                if library.playlists.isEmpty {
-                    empty("No Saved Playlists", "music.note.list", "Add playlists with the + button on their pages. Your own playlists are in the sidebar.")
+                if library.playlists.isEmpty && library.userPlaylists.isEmpty {
+                    empty("No Playlists", "music.note.list", "Make one with New Playlist in the sidebar, or add playlists with the + button on their pages.")
                 } else {
-                    MacGrid(items: sortedPlaylists) { playlist, side in MacItemCard(item: .playlist(playlist), width: side) }
+                    if !library.userPlaylists.isEmpty {
+                        MacSectionTitle(title: "Your Playlists")
+                            .padding(.horizontal, MacMetrics.gutter)
+                        MacGrid(items: sortedUserPlaylists) { playlist, side in
+                            NavigationLink(value: Route.userPlaylist(playlist.id)) {
+                                MacCoverCard(title: playlist.name,
+                                             subtitle: playlist.songs.count == 1 ? "1 song" : "\(playlist.songs.count) songs",
+                                             width: side,
+                                             onPlay: playlist.songs.isEmpty ? nil : { player.play(playlist.songs) }) {
+                                    PlaylistMosaic(songs: playlist.songs, size: side, cornerRadius: 10)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    if !library.playlists.isEmpty {
+                        MacSectionTitle(title: "Saved Playlists")
+                            .padding(.horizontal, MacMetrics.gutter)
+                            .padding(.top, library.userPlaylists.isEmpty ? 0 : 12)
+                        MacGrid(items: sortedPlaylists) { playlist, side in MacItemCard(item: .playlist(playlist), width: side) }
+                    }
                 }
             case .artists:
                 if library.artists.isEmpty {
@@ -322,6 +343,13 @@ struct MacLibraryGrid: View {
         switch sort {
         case .recent: library.playlists
         case .title, .artist: library.playlists.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        }
+    }
+
+    private var sortedUserPlaylists: [UserPlaylist] {
+        switch sort {
+        case .recent: library.userPlaylists.sorted { $0.modified > $1.modified }
+        case .title, .artist: library.userPlaylists.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         }
     }
 

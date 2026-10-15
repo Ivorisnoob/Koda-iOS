@@ -356,9 +356,91 @@ private struct PlaylistPickerModifier: ViewModifier {
         content.sheet(item: Binding(
             get: { isOnTop ? app.playlistTarget : nil },
             set: { if isOnTop { app.playlistTarget = $0 } })) { target in
-            AddToPlaylistSheet(target: target)
-                .appEnvironment(app)
+            Group {
+                if Platform.isMac { MacNewPlaylistSheet(target: target) } else { AddToPlaylistSheet(target: target) }
+            }
+            .appEnvironment(app)
         }
     }
 }
 
+
+/// "Add to Playlist" in a song's or a collection's menu. On the Mac it is a submenu of the
+/// listener's playlists, as Music's is, with New Playlist… first; on the iPhone it opens the sheet.
+struct AddToPlaylistMenu: View {
+    let songs: [Song]
+    @Environment(AppModel.self) private var app
+    @Environment(Library.self) private var library
+
+    var body: some View {
+        if Platform.isMac {
+            Menu("Add to Playlist", systemImage: "text.badge.plus") {
+                Button("New Playlist…", systemImage: "plus") { app.addToPlaylist(songs) }
+                if !library.userPlaylists.isEmpty {
+                    Divider()
+                    ForEach(library.userPlaylists) { playlist in
+                        let containsAll = Set(songs.map(\.id)).isSubset(of: Set(playlist.songs.map(\.id)))
+                        Button(playlist.name, systemImage: containsAll ? "checkmark" : "music.note.list") {
+                            library.add(songs, toPlaylist: playlist.id)
+                        }
+                        .disabled(containsAll)
+                    }
+                }
+            }
+        } else {
+            Button("Add to Playlist…", systemImage: "text.badge.plus") { app.addToPlaylist(songs) }
+        }
+    }
+}
+
+/// A new playlist from songs on the Mac: a small sheet asking only for its name.
+struct MacNewPlaylistSheet: View {
+    let target: AppModel.PlaylistTarget
+    @Environment(AppModel.self) private var app
+    @Environment(Library.self) private var library
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 14) {
+                PlaylistMosaic(songs: target.songs, size: 64, cornerRadius: 8)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("New Playlist").font(.headline)
+                    Text(target.songs.count == 1 ? "With “\(target.songs[0].title)”" : "With these \(target.songs.count) songs")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            TextField("Name", text: $name)
+                .textFieldStyle(.roundedBorder)
+                .focused($focused)
+                .onSubmit(create)
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Create Playlist", action: create)
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 400)
+        .onAppear {
+            name = "Playlist \(library.userPlaylists.count + 1)"
+            focused = true
+        }
+    }
+
+    private func create() {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        let playlist = library.createPlaylist(named: trimmed, songs: target.songs)
+        dismiss()
+        app.requestedMacSection = .userPlaylist(playlist.id)
+    }
+}

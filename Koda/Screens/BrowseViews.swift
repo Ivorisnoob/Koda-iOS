@@ -288,7 +288,7 @@ struct SongListView: View {
                 } actions: {
                     MacMoreMenu {
                         Button("Add to Queue", systemImage: "text.line.last.and.arrowtriangle.forward") { player.addToQueue(songs) }
-                        Button("Add to Playlist…", systemImage: "text.badge.plus") { app.addToPlaylist(songs) }
+                        AddToPlaylistMenu(songs: songs)
                     }
                 }
                 MacTrackList(songs: songs) { player.play(songs, startAt: $0) }
@@ -329,7 +329,7 @@ struct SongListView: View {
         .toolbar {
             Menu("More", systemImage: "ellipsis") {
                 Button("Add to Queue", systemImage: "text.line.last.and.arrowtriangle.forward") { player.addToQueue(songs) }
-                Button("Add to Playlist…", systemImage: "text.badge.plus") { app.addToPlaylist(songs) }
+                AddToPlaylistMenu(songs: songs)
             }
         }
     }

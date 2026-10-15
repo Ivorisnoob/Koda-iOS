@@ -68,7 +68,7 @@ struct PlaylistView: View {
             if !songs.isEmpty {
                 Button("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward") { player.playNext(songs) }
                 Button("Add to Queue", systemImage: "text.line.last.and.arrowtriangle.forward") { player.addToQueue(songs) }
-                Button("Add to Playlist…", systemImage: "text.badge.plus") { app.addToPlaylist(songs) }
+                AddToPlaylistMenu(songs: songs)
             }
             ShareLink(item: URL(string: "https://music.youtube.com/playlist?list=\(summary.id)")!) {
                 Label("Share", systemImage: "square.and.arrow.up")
@@ -127,7 +127,7 @@ struct PlaylistView: View {
                     if !songs.isEmpty {
                         Button("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward") { player.playNext(songs) }
                         Button("Add to Queue", systemImage: "text.line.last.and.arrowtriangle.forward") { player.addToQueue(songs) }
-                        Button("Add to Playlist…", systemImage: "text.badge.plus") { app.addToPlaylist(songs) }
+                        AddToPlaylistMenu(songs: songs)
                     }
                     ShareLink(item: URL(string: "https://music.youtube.com/playlist?list=\(summary.id)")!) {
                         Label("Share", systemImage: "square.and.arrow.up")
