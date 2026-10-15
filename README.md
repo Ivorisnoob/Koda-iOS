@@ -6,13 +6,14 @@ Koda is an unofficial client and is not affiliated with YouTube or Google.
 
 ## What it does
 
-- Home with Quick picks, moods and genres, new releases and top artists
-- Search with suggestions and filters for songs, albums, artists and playlists
-- Album, artist and playlist pages
-- Gapless playback in the background, lock screen and Control Center controls, AirPlay
-- Shuffle, repeat, autoplay radio, and a queue you can reorder
-- Synced lyrics
-- Liked songs, saved albums, playlists and artists, and history, kept on the phone
+- Home built around **Your Mix**, woven from radios of the artists you play most, plus Jump back in, Quick picks, your top artists, moods and new releases
+- Search with suggestions, filters, voice search, and YouTube or YouTube Music links pasted straight in
+- Album, artist and playlist pages; playlists of your own you can reorder, rename and fill from any song's menu
+- Gapless playback in the background, lock screen and Control Center controls, AirPlay, volume normalization
+- Shuffle, repeat, autoplay radio, a queue you can reorder, and a sleep timer
+- Word-by-word synced lyrics from YouLyPlus and BetterLyrics, line-synced from LRCLIB, with duets, backing vocals and shareable lyric cards
+- A profile with listening stats: time listened, streaks, top songs and artists
+- Liked songs, saved albums, playlists and artists, history and stats, kept on the phone, with backup and restore
 
 ## Layout
 

@@ -18,8 +18,12 @@ struct ArtistView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 hero
-                AsyncContent(state: state, retry: load) { page in
-                    content(page)
+                if case .loading = state {
+                    ArtistSkeleton()
+                } else {
+                    AsyncContent(state: state, retry: load) { page in
+                        content(page)
+                    }
                 }
             }
             .padding(.bottom, 32)
@@ -50,13 +54,23 @@ struct ArtistView: View {
         return GeometryReader { geometry in
             let width = geometry.size.width
             ZStack(alignment: .bottomLeading) {
-                ArtistHeroImage(artwork: banner, width: width, height: heroHeight + pull)
+                ArtistHeroImage(artwork: banner, preview: summary.artwork, tint: palette.palette.mesh[4],
+                                width: width, height: heroHeight + pull)
                 LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .center, endPoint: .bottom)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(state.value?.artist.name ?? summary.name)
-                        .font(.system(size: 40, weight: .bold))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.6)
+                    let name = state.value?.artist.name ?? summary.name
+                    if name.isEmpty {
+                        // Opened from a link, the name comes with the page.
+                        Capsule().fill(.white.opacity(0.25)).frame(width: 180, height: 34)
+                            .sheen(true)
+                            .clipShape(.capsule)
+                    } else {
+                        Text(name)
+                            .font(.system(size: 40, weight: .bold))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.6)
+                            .transition(.opacity)
+                    }
                     if let audience = state.value?.artist.subtitle {
                         Text(audience).font(.subheadline.weight(.medium)).opacity(0.85)
                     }
@@ -156,12 +170,19 @@ struct ArtistView: View {
 /// The immersive banner is served wide with the portrait pillarboxed inside;
 /// its `-p` directive crops the full-resolution source to whatever box is
 /// asked for, which is sharper than cropping the wide banner here.
+/// The artist's banner, loaded progressively: the small photo already on screen elsewhere
+/// shows at once, blurred and enlarged, and the sharp banner fades in over it.
 private struct ArtistHeroImage: View {
     let artwork: Artwork?
+    /// The small photo from the list the artist was opened from, likely cached already.
+    let preview: Artwork?
+    /// The photo's main colour, for the space while nothing has loaded.
+    let tint: Color
     let width: CGFloat
     let height: CGFloat
     @Environment(\.displayScale) private var scale
     @State private var image: UIImage?
+    @State private var previewImage: UIImage?
 
     private var url: URL? {
         guard let artwork else { return nil }
@@ -174,13 +195,29 @@ private struct ArtistHeroImage: View {
 
     var body: some View {
         ZStack {
-            Rectangle().fill(.quaternary)
+            LinearGradient(colors: [tint.opacity(0.9), tint.opacity(0.4)], startPoint: .top, endPoint: .bottom)
+            if let previewImage, image == nil {
+                Image(uiImage: previewImage)
+                    .resizable()
+                    .scaledToFill()
+                    .blur(radius: 24)
+                    .scaleEffect(1.2)
+                    .transition(.opacity)
+            }
             if let image {
                 Image(uiImage: image).resizable().scaledToFill().transition(.opacity)
             }
         }
         .frame(width: width, height: height)
+        .sheen(image == nil, period: 1.8)
         .clipped()
+        .task(id: preview?.url) {
+            guard let url = preview?.url(pixels: 120), image == nil else { return }
+            var small = ImagePipeline.shared.cached(url, pixels: 120)
+            if small == nil { small = await ImagePipeline.shared.image(url, pixels: 120) }
+            guard image == nil else { return }
+            withAnimation(.easeOut(duration: 0.2)) { previewImage = small }
+        }
         .task(id: url) {
             guard let url else { return }
             let pixels = Int(max(width, 400) * scale)
@@ -192,5 +229,36 @@ private struct ArtistHeroImage: View {
             withAnimation(.easeOut(duration: 0.25)) { image = loaded }
         }
         .accessibilityHidden(true)
+    }
+}
+
+/// Top songs and albums in shimmering placeholders while the artist's page loads.
+private struct ArtistSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 12) {
+                ForEach(0..<2) { _ in
+                    Capsule().fill(.quaternary).frame(height: 50)
+                }
+            }
+            RoundedRectangle(cornerRadius: 6).fill(.quaternary).frame(width: 120, height: 20)
+            ForEach(0..<5) { _ in
+                HStack(spacing: 12) {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.quaternary).frame(width: 48, height: 48)
+                    VStack(alignment: .leading, spacing: 6) {
+                        RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(width: 170, height: 13)
+                        RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(width: 110, height: 11)
+                    }
+                }
+            }
+            HStack(spacing: 14) {
+                ForEach(0..<3) { _ in
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.quaternary).frame(width: 140, height: 140)
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+        .sheen(true, period: 1.8)
+        .accessibilityLabel("Loading")
     }
 }

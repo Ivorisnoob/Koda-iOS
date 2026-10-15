@@ -58,6 +58,8 @@ final class AppSettings {
     var lyricsMotion: Bool { didSet { defaults.set(lyricsMotion, forKey: Keys.lyricsMotion) } }
     var lyricsSize: LyricsSize { didSet { defaults.set(lyricsSize.rawValue, forKey: Keys.lyricsSize) } }
     var showsBackingVocals: Bool { didSet { defaults.set(showsBackingVocals, forKey: Keys.backingVocals) } }
+    /// Duet lines on the right and group lines centred; off, every line sits on the left.
+    var duetSides: Bool { didSet { defaults.set(duetSides, forKey: Keys.duetSides) } }
     /// Off, nothing played is added to history, Quick picks or stats.
     var savesListeningHistory: Bool { didSet { defaults.set(savesListeningHistory, forKey: Keys.listeningHistory) } }
     var savesSearchHistory: Bool { didSet { defaults.set(savesSearchHistory, forKey: Keys.searchHistory) } }
@@ -70,6 +72,7 @@ final class AppSettings {
         static let lyricsMotion = "koda.lyrics.motion"
         static let lyricsSize = "koda.lyrics.size"
         static let backingVocals = "koda.lyrics.backingVocals"
+        static let duetSides = "koda.lyrics.duetSides"
         static let listeningHistory = "koda.history.listening"
         static let searchHistory = "koda.history.search"
     }
@@ -85,6 +88,7 @@ final class AppSettings {
         lyricsMotion = d.object(forKey: Keys.lyricsMotion) as? Bool ?? true
         lyricsSize = d.string(forKey: Keys.lyricsSize).flatMap(LyricsSize.init(rawValue:)) ?? .standard
         showsBackingVocals = d.object(forKey: Keys.backingVocals) as? Bool ?? true
+        duetSides = d.object(forKey: Keys.duetSides) as? Bool ?? false
         savesListeningHistory = d.object(forKey: Keys.listeningHistory) as? Bool ?? true
         savesSearchHistory = d.object(forKey: Keys.searchHistory) as? Bool ?? true
     }

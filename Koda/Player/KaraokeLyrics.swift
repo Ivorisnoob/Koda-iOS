@@ -178,9 +178,11 @@ struct LyricRow: View {
 
     nonisolated static let defaultFontSize: CGFloat = 30
     private var style: LyricsStyle { LyricsStyle(app.settings) }
+    /// Where the line sits: every line on the left unless Duet Sides is on.
+    private var voice: LyricVoice { style.duetSides ? line.voice : .lead }
 
     private var alignment: HorizontalAlignment {
-        switch line.voice {
+        switch voice {
         case .lead: .leading
         case .duet: .trailing
         case .together: .center
@@ -188,7 +190,7 @@ struct LyricRow: View {
     }
 
     private var frameAlignment: Alignment {
-        switch line.voice {
+        switch voice {
         case .lead: .leading
         case .duet: .trailing
         case .together: .center
@@ -218,7 +220,7 @@ struct LyricRow: View {
             } else {
                 Text(line.text.isEmpty ? "♪" : line.text)
                     .font(style.font)
-                    .multilineTextAlignment(line.voice == .duet ? .trailing : line.voice == .together ? .center : .leading)
+                    .multilineTextAlignment(voice == .duet ? .trailing : voice == .together ? .center : .leading)
                     // Line-timed lyrics light as a whole line; no word fill is invented for them.
                     .shadow(color: .white.opacity(isCurrent ? 0.35 : 0), radius: isCurrent ? 14 : 0)
             }
@@ -226,10 +228,10 @@ struct LyricRow: View {
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, alignment: frameAlignment)
         // A duet's sides stop short of each other, so a wrapped line still reads as its singer's.
-        .padding(line.voice == .duet ? .leading : .trailing, hasDuet && line.voice != .together ? 44 : 0)
+        .padding(voice == .duet ? .leading : .trailing, style.duetSides && hasDuet && voice != .together ? 44 : 0)
         .opacity(isCurrent ? 1 : distance <= 1 ? 0.42 : 0.3)
         .blur(radius: isCurrent ? 0 : min(Double(max(distance - 1, 0)) * 0.7, 2.4))
-        .scaleEffect(isCurrent ? 1 : 0.97, anchor: UnitPoint(x: line.voice == .duet ? 1 : line.voice == .together ? 0.5 : 0, y: 0.5))
+        .scaleEffect(isCurrent ? 1 : 0.97, anchor: UnitPoint(x: voice == .duet ? 1 : voice == .together ? 0.5 : 0, y: 0.5))
         .animation(.spring(response: 0.5, dampingFraction: 0.85), value: isCurrent)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(line.text)
@@ -421,12 +423,14 @@ struct LyricsStyle {
     var fontSize: CGFloat
     var motion: Bool
     var showsBackingVocals: Bool
+    var duetSides: Bool
 
     @MainActor
     init(_ settings: AppSettings) {
         fontSize = settings.lyricsSize.fontSize
         motion = settings.lyricsMotion
         showsBackingVocals = settings.showsBackingVocals
+        duetSides = settings.duetSides
     }
 
     var font: Font { .system(size: fontSize, weight: .bold) }
