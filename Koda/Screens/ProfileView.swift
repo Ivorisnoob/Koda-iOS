@@ -104,6 +104,7 @@ struct ProfileView: View {
             .background { ProfileGlow() }
             .routeDestinations()
             .navigationTitle("Profile")
+            .scrollEdgeEffectStyle(.soft, for: .all)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

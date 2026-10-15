@@ -105,13 +105,6 @@ struct SyncedLyrics: View {
                     .transition(.scale.combined(with: .opacity))
             }
         }
-        .overlay(alignment: .bottomLeading) {
-            if let id = player.current?.id {
-                LyricsTimingControl(songId: id)
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, Self.bleed + 8)
-            }
-        }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: userScrolled)
         .sheet(item: $shareFrom) { start in
             LyricsShareSheet(lines: lines, song: start.song, startingAt: start.line)

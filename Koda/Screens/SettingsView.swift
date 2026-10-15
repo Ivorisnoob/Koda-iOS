@@ -83,6 +83,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .scrollEdgeEffectStyle(.soft, for: .all)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

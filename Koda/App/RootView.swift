@@ -29,6 +29,9 @@ struct RootView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        // iOS 27 made the automatic edge effect hard: an opaque band under the bars. A soft one
+        // blurs content progressively instead. It applies to every scroll view below here.
+        .scrollEdgeEffectStyle(.soft, for: .all)
         .modifier(MiniPlayerAccessory(isEnabled: player.current != nil) {
             MiniPlayer()
                 .matchedTransitionSource(id: "player", in: playerTransition)

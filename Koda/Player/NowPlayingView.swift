@@ -85,7 +85,10 @@ struct NowPlayingView: View {
             if let song = player.current {
                 Menu {
                     SongMenuItems(song: song)
-                    Section { SleepTimerMenu() }
+                    Section {
+                        SleepTimerMenu()
+                        if panel == .lyrics { LyricsTimingMenu(songId: song.id) }
+                    }
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.body.weight(.semibold))
@@ -336,5 +339,26 @@ private struct SleepTimerPill: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Sleep timer")
+    }
+}
+
+/// Shift synced lyrics for the playing song, when they run ahead of or behind the singing.
+private struct LyricsTimingMenu: View {
+    let songId: String
+    @Environment(Library.self) private var library
+
+    var body: some View {
+        let offset = library.lyricsOffset(for: songId)
+        Menu {
+            Button("Show Lyrics Earlier", systemImage: "backward") { library.setLyricsOffset(offset - 0.2, for: songId) }
+            Button("Show Lyrics Later", systemImage: "forward") { library.setLyricsOffset(offset + 0.2, for: songId) }
+            if offset != 0 {
+                Button("Reset Timing", systemImage: "arrow.counterclockwise") { library.setLyricsOffset(0, for: songId) }
+            }
+        } label: {
+            Label(offset == 0 ? "Lyrics Timing" : String(format: "Lyrics Timing (%+.1fs)", offset), systemImage: "timer")
+        }
+        // The menu stays open between steps, so the listener can nudge and watch the lyrics move.
+        .menuActionDismissBehavior(.disabled)
     }
 }

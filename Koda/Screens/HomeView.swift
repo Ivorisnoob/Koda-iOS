@@ -485,10 +485,17 @@ private struct JumpBackIn: View {
         HStack(spacing: 10) {
             Group {
                 switch item {
-                case .liked:
-                    LinearGradient(colors: [.pink, .purple], startPoint: .topLeading, endPoint: .bottomTrailing)
-                        .overlay { Image(systemName: "heart.fill").font(.title3).foregroundStyle(.white) }
-                        .frame(width: 56, height: 56)
+                case .liked(_, let songs):
+                    // The listener's own liked covers, marked with a heart, rather than a stock colour.
+                    PlaylistMosaic(songs: songs, size: 56, cornerRadius: 0)
+                        .overlay(alignment: .bottomTrailing) {
+                            Image(systemName: "heart.fill")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 20, height: 20)
+                                .background(.black.opacity(0.45), in: .circle)
+                                .padding(3)
+                        }
                 case .userPlaylist(let p):
                     PlaylistMosaic(songs: p.songs, size: 56, cornerRadius: 0)
                 case .album(let a):

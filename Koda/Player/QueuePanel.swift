@@ -8,6 +8,20 @@ struct QueuePanel: View {
     var body: some View {
         VStack(spacing: 12) {
             modeToggles
+            // Above the list rather than a sticky section header: iOS draws those on a band
+            // of their own, which showed as an outline over the songs scrolling under it.
+            HStack {
+                Text(player.queue.upcoming.isEmpty ? "Nothing Up Next" : "Up Next")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Spacer()
+                if !player.queue.upcoming.isEmpty {
+                    Button("Clear") { withAnimation { player.clearUpcoming() } }
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+            }
+            .padding(.horizontal, 4)
             List {
                 Section {
                     ForEach(player.queue.upcoming) { item in
@@ -21,22 +35,10 @@ struct QueuePanel: View {
                             }
                     }
                     .onMove { source, destination in player.moveUpcoming(fromOffsets: source, toOffset: destination) }
-                } header: {
-                    HStack {
-                        Text(player.queue.upcoming.isEmpty ? "Nothing Up Next" : "Up Next")
-                            .font(.headline)
-                            .foregroundStyle(.white)
-                        Spacer()
-                        if !player.queue.upcoming.isEmpty {
-                            Button("Clear") { withAnimation { player.clearUpcoming() } }
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.7))
-                        }
-                    }
-                    .textCase(nil)
                 }
             }
             .listStyle(.plain)
+            .scrollEdgeEffectStyle(.soft, for: .all)
             .scrollContentBackground(.hidden)
             .environment(\.editMode, .constant(.active))
             .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.04),
