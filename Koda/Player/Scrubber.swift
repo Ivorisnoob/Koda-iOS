@@ -3,13 +3,16 @@ import KodaCore
 import MediaPlayer
 import SwiftUI
 
-/// The progress bar: drag anywhere on it to seek; it thickens under the finger.
+/// The progress bar: it thickens under the finger, and a drag from anywhere on it moves the
+/// position by the distance dragged, as Music's does; a touch alone never jumps the song.
 ///
 /// Position is read from the player's time anchor inside a TimelineView, so
 /// only this bar redraws as the song plays, never the screen around it.
 struct Scrubber: View {
     @Environment(Player.self) private var player
     @State private var dragFraction: Double?
+    /// Where the bar was when the finger came down.
+    @State private var dragStart: Double?
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.25)) { context in
@@ -32,12 +35,16 @@ struct Scrubber: View {
                     .gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
-                                dragFraction = min(1, max(0, value.location.x / width))
+                                let start = dragStart ?? min(1, player.position() / duration)
+                                dragStart = start
+                                dragFraction = min(1, max(0, start + value.translation.width / width))
                             }
-                            .onEnded { value in
-                                let target = min(1, max(0, value.location.x / width)) * duration
-                                player.seek(to: target)
+                            .onEnded { _ in
+                                if let dragFraction, let dragStart, abs(dragFraction - dragStart) * width >= 1 {
+                                    player.seek(to: dragFraction * duration)
+                                }
                                 dragFraction = nil
+                                dragStart = nil
                             })
                 }
                 .frame(height: 24)
@@ -71,10 +78,13 @@ struct Scrubber: View {
 
 /// The phone's media volume as a bar drawn like the progress bar, speaker symbols either
 /// side and centred on it. It follows the hardware buttons, and while it is on screen
-/// the system's volume overlay stays away, as in Music.
+/// the system's volume overlay stays away, as in Music. Like the progress bar it moves by
+/// the distance dragged, so brushing its loud end never jumps to full volume.
 struct VolumeSlider: View {
     @State private var volume = SystemVolume()
     @State private var dragging = false
+    /// The level when the finger came down.
+    @State private var dragStart: Float?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -98,9 +108,14 @@ struct VolumeSlider: View {
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
                             dragging = true
-                            volume.set(Float(min(1, max(0, value.location.x / width))))
+                            let start = dragStart ?? volume.level
+                            dragStart = start
+                            volume.set(min(1, max(0, start + Float(value.translation.width / width))))
                         }
-                        .onEnded { _ in dragging = false })
+                        .onEnded { _ in
+                            dragging = false
+                            dragStart = nil
+                        })
             }
             .frame(height: 24)
             .animation(.smooth, value: dragging)

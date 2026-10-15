@@ -13,6 +13,7 @@ struct NowPlayingView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var panel: Panel = .artwork
     @Namespace private var artworkSpace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -136,28 +137,35 @@ struct NowPlayingView: View {
     }
 
     private var titleRow: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(player.current?.title ?? "")
-                    .font(.title3.bold())
-                    .lineLimit(1)
-                artistButton
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if let song = player.current {
-                LikeButton(song: song)
-            }
-        }
+        songLines(title: .title3.bold(), byline: .title3)
     }
 
     /// The byline: one artist opens at a tap, several offer a choice.
-    private var artistButton: some View {
+    private func artistButton(font: Font) -> some View {
         ArtistLinks(line: player.current?.artistLine ?? "", artists: player.current?.artists ?? [], open: { app.open(.artist($0)) }) {
-            Text(player.current?.artistLine ?? "")
-                .font(.title3)
+            MarqueeText(text: player.current?.artistLine ?? "", font: font)
                 .foregroundStyle(.white.opacity(0.7))
-                .lineLimit(1)
         }
+    }
+
+    /// Title, byline and like button. A new song's lines fade in over the last one's, and
+    /// lines too long to fit scroll sideways, as in Music.
+    private func songLines(title: Font, byline: Font) -> some View {
+        ZStack {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    MarqueeText(text: player.current?.title ?? "", font: title)
+                    artistButton(font: byline)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if let song = player.current {
+                    LikeButton(song: song)
+                }
+            }
+            .id(player.current?.id)
+            .transition(.opacity)
+        }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: player.current?.id)
     }
 
     /// The cover, title and like button in one row, above lyrics or the queue.
@@ -166,29 +174,22 @@ struct NowPlayingView: View {
             Color.clear
                 .frame(width: 64, height: 64)
                 .matchedGeometryEffect(id: "artwork", in: artworkSpace)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(player.current?.title ?? "").font(.headline).lineLimit(1)
-                artistButton.font(.subheadline)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if let song = player.current {
-                LikeButton(song: song)
-            }
+            songLines(title: .headline, byline: .subheadline)
         }
         .padding(.vertical, 16)
     }
 
+    /// Lyrics, AirPlay and the queue, as plain symbols like the transport above them, each
+    /// centred in the same third of the width as the control above it.
     private var bottomBar: some View {
-        GlassEffectContainer(spacing: 20) {
-            HStack(spacing: 0) {
-                panelButton(.lyrics, systemImage: "quote.bubble", activeImage: "quote.bubble.fill", label: "Lyrics")
-                Spacer()
-                AirPlayButton()
-                    .frame(width: 52, height: 44)
-                    .glassEffect(.regular.interactive(), in: .capsule)
-                Spacer()
-                panelButton(.queue, systemImage: "list.bullet", activeImage: "list.bullet", label: "Queue")
-            }
+        HStack(spacing: 0) {
+            panelButton(.lyrics, systemImage: "quote.bubble", activeImage: "quote.bubble.fill", label: "Lyrics")
+                .frame(maxWidth: .infinity)
+            AirPlayButton()
+                .frame(width: 52, height: 40)
+                .frame(maxWidth: .infinity)
+            panelButton(.queue, systemImage: "list.bullet", activeImage: "list.bullet", label: "Queue")
+                .frame(maxWidth: .infinity)
         }
     }
 
@@ -200,18 +201,17 @@ struct NowPlayingView: View {
         } label: {
             Image(systemName: active ? activeImage : systemImage)
                 .font(.body.weight(.semibold))
-                .frame(width: 52, height: 44)
-                .contentShape(.capsule)
+                .frame(width: 52, height: 40)
         }
-        .buttonStyle(.plain)
-        .glassEffect(active ? .regular.tint(.white.opacity(0.35)).interactive() : .regular.interactive(), in: .capsule)
+        .buttonStyle(PlayerToggleStyle(isOn: active))
         .sensoryFeedback(.selection, trigger: active)
         .accessibilityLabel(label)
         .accessibilityAddTraits(active ? .isSelected : [])
     }
 
+    /// With Reduce Motion the panel changes in place, without the cover travelling across the screen.
     private func setPanel(_ next: Panel) {
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) { panel = next }
+        withAnimation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.85)) { panel = next }
     }
 }
 
@@ -256,7 +256,10 @@ struct LikeButton: View {
                 .foregroundStyle(liked ? Color.pink : .white)
                 .contentTransition(.symbolEffect(.replace))
                 .symbolEffect(.bounce, value: liked)
-                .frame(width: 44, height: 44)
+                // Drawn at the trailing edge of its tap area, so the heart lines up with the
+                // end of the progress bar rather than sitting inside it.
+                .frame(width: 44, height: 44, alignment: .trailing)
+                .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .sensoryFeedback(.impact(weight: .light), trigger: liked)
@@ -264,40 +267,79 @@ struct LikeButton: View {
     }
 }
 
+/// Previous, play/pause and next, each centred in a third of the width, the same thirds
+/// the bottom bar uses, so the two rows line up.
 struct TransportControls: View {
     @Environment(Player.self) private var player
-    @State private var skips = 0
+    @State private var backs = 0
+    @State private var forwards = 0
 
     var body: some View {
-        HStack {
-            Spacer()
-            Button {
-                skips += 1
+        HStack(spacing: 0) {
+            skipButton("backward.fill", label: "Previous", taps: backs) {
+                backs += 1
                 player.previous()
-            } label: {
-                Image(systemName: "backward.fill").font(.system(size: 32))
-                    .frame(width: 72, height: 60)
-                    .contentShape(.rect)
             }
-            .accessibilityLabel("Previous")
-            Spacer()
+            .frame(maxWidth: .infinity)
             PlayPauseButton(size: 44)
-            Spacer()
-            Button {
-                skips += 1
+                .frame(maxWidth: .infinity)
+            skipButton("forward.fill", label: "Next", taps: forwards) {
+                forwards += 1
                 player.next()
-            } label: {
-                Image(systemName: "forward.fill").font(.system(size: 32))
-                    .frame(width: 72, height: 60)
-                    .contentShape(.rect)
             }
-            .accessibilityLabel("Next")
-            Spacer()
+            .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.plain)
-        .symbolEffect(.bounce.down, value: skips)
-        .sensoryFeedback(.impact(weight: .light), trigger: skips)
+        .sensoryFeedback(.impact(weight: .light), trigger: backs + forwards)
         .disabled(player.current == nil)
+    }
+
+    /// Only the pressed button answers: its own symbol bounces.
+    private func skipButton(_ symbol: String, label: String, taps: Int, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 32))
+                .symbolEffect(.bounce.down, value: taps)
+                .frame(width: 72, height: 60)
+        }
+        .buttonStyle(TransportButtonStyle())
+        .accessibilityLabel(label)
+    }
+}
+
+/// A soft circle behind the symbol while it is held, as Music's transport buttons show.
+private struct TransportButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background {
+                Circle()
+                    .fill(.white.opacity(configuration.isPressed ? 0.14 : 0))
+                    .frame(width: 64, height: 64)
+            }
+            .contentShape(.rect)
+            .scaleEffect(configuration.isPressed ? 0.9 : 1)
+            .animation(.snappy(duration: 0.2), value: configuration.isPressed)
+    }
+}
+
+/// Every toggle in Now Playing: white with a dark symbol while on, plain or faintly filled
+/// while off. Drawn by Koda rather than with an interactive glass layer, which can take the
+/// touch for itself so the button's action never runs.
+struct PlayerToggleStyle: ButtonStyle {
+    var isOn: Bool
+    /// The fill behind the symbol while off: none for a lone symbol, faint for a row of toggles.
+    var offFill: Double = 0
+
+    func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed
+        configuration.label
+            .foregroundStyle(isOn ? Color.black : .white)
+            .background {
+                Capsule().fill(.white.opacity(isOn ? (pressed ? 0.85 : 1) : offFill + (pressed ? 0.12 : 0)))
+            }
+            .contentShape(.capsule)
+            .scaleEffect(pressed ? 0.95 : 1)
+            .animation(.snappy(duration: 0.2), value: pressed)
+            .animation(.smooth(duration: 0.25), value: isOn)
     }
 }
 
