@@ -14,10 +14,28 @@ struct NowPlayingView: View {
     @State private var panel: Panel = .artwork
     @Namespace private var artworkSpace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Room for the cover and the lyrics or queue side by side: a Mac window, an iPad in landscape.
+    @State private var isWide = false
 
     var body: some View {
         ZStack {
             MeshBackground(palette: app.nowPlayingPalette.palette, isAnimating: player.wantsToPlay && app.settings.animatesPlayerBackground)
+            if isWide { wideLayout } else { tallLayout }
+        }
+        .onGeometryChange(for: Bool.self) { $0.size.width >= 900 && $0.size.height >= 560 } action: { isWide = $0 }
+        .foregroundStyle(.white)
+        .environment(\.colorScheme, .dark)
+        .onChange(of: player.current == nil) { _, isEmpty in if isEmpty { dismiss() } }
+        .onChange(of: app.requestedPanel, initial: true) { _, requested in
+            guard let requested else { return }
+            app.requestedPanel = nil
+            setPanel(requested)
+        }
+        .playlistPicker(whenOnTop: true)
+    }
+
+    /// The phone's player: one column, the cover giving way to lyrics or the queue.
+    private var tallLayout: some View {
             VStack(spacing: 0) {
                 topBar
                 switch panel {
@@ -53,11 +71,57 @@ struct NowPlayingView: View {
             .overlay {
                 if player.current != nil { floatingArtwork }
             }
+    }
+
+    /// The wide player: the cover and controls hold the left, and lyrics or the queue open
+    /// beside them instead of over the cover, as Music does on the Mac and iPad.
+    private var wideLayout: some View {
+        VStack(spacing: 0) {
+            topBar
+                .padding(.horizontal, 28)
+            HStack(spacing: 64) {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 16)
+                    bigArtwork
+                    Spacer(minLength: 20)
+                    titleRow
+                    if case .failed(let message) = player.phase {
+                        FailureBanner(message: message) { player.resume() }
+                            .padding(.top, 12)
+                    }
+                    Scrubber()
+                        .padding(.top, 16)
+                    TransportControls()
+                        .padding(.vertical, 12)
+                    VolumeSlider()
+                        .frame(height: 34)
+                    bottomBar
+                        .padding(.top, 10)
+                    Spacer(minLength: 16)
+                }
+                .frame(maxWidth: 440)
+                .overlay {
+                    if player.current != nil { floatingArtwork }
+                }
+                if panel != .artwork {
+                    Group {
+                        if panel == .lyrics { LyricsPanel() } else { QueuePanel() }
+                    }
+                    .frame(maxWidth: 620, maxHeight: .infinity)
+                    .padding(.vertical, 16)
+                    .transition(.opacity.combined(with: .offset(x: 40)))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 48)
+            .padding(.bottom, 16)
         }
-        .foregroundStyle(.white)
-        .environment(\.colorScheme, .dark)
-        .onChange(of: player.current == nil) { _, isEmpty in if isEmpty { dismiss() } }
-        .playlistPicker(whenOnTop: true)
+        // Escape closes the player, as it closes any full-window view on the Mac.
+        .background {
+            Button("Close") { dismiss() }
+                .keyboardShortcut(.cancelAction)
+                .hidden()
+        }
     }
 
     /// The song was asked for and no sound has come yet.
@@ -119,7 +183,7 @@ struct NowPlayingView: View {
     }
 
     private var floatingArtwork: some View {
-        let big = panel == .artwork
+        let big = isWide || panel == .artwork
         let radius: CGFloat = big ? 18 : 8
         return ArtworkView(artwork: player.current?.artwork, size: 380, cornerRadius: radius, fillsFrame: true)
             // While the song loads the cover waits a little small, then settles to full size

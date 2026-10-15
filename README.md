@@ -33,6 +33,28 @@ Koda isn't on the App Store, so you sign it yourself with your Apple ID, using a
 
 A free Apple ID's signature lasts seven days; AltStore and SideStore renew it for you. The first time, iOS may ask you to trust your Apple ID in **Settings → General → VPN & Device Management**.
 
+## On the Mac
+
+Koda also runs on the Mac, as one app for Apple silicon and Intel, with a sidebar, a player bar and the menu bar's Controls. It needs macOS 26 or later.
+
+Builds of `Koda.dmg` come from [GitHub Actions](https://github.com/Ivorisnoob/Koda-iOS/actions): open the newest run and download **Koda-mac** under Artifacts. Open the disk image and drag Koda into Applications.
+
+Koda isn't notarized by Apple, so the first time macOS says it can't check it. Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** beside Koda. Or, in Terminal:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Koda.app
+```
+
+| Shortcut | Does |
+|---|---|
+| Space | Play or pause |
+| ⌘→ / ⌘← | Next / previous song |
+| ⌘↑ / ⌘↓ | Volume up / down |
+| ⇧⌘P | Show or hide Now Playing |
+| ⇧⌘L / ⇧⌘U | Lyrics / queue |
+| ⌘1 / ⌘2 / ⌘F | Home / Library / Search |
+| ⌘, | Settings |
+
 ## Features
 
 ### Listening

@@ -35,12 +35,14 @@ struct Scrubber: View {
                     .gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
-                                let start = dragStart ?? min(1, player.position() / duration)
+                                let start = dragStart ?? (Platform.isMac
+                                    ? min(1, max(0, value.startLocation.x / width))
+                                    : min(1, player.position() / duration))
                                 dragStart = start
                                 dragFraction = min(1, max(0, start + value.translation.width / width))
                             }
                             .onEnded { _ in
-                                if let dragFraction, let dragStart, abs(dragFraction - dragStart) * width >= 1 {
+                                if let dragFraction, let dragStart, Platform.isMac || abs(dragFraction - dragStart) * width >= 1 {
                                     player.seek(to: dragFraction * duration)
                                 }
                                 dragFraction = nil
@@ -81,6 +83,7 @@ struct Scrubber: View {
 /// the system's volume overlay stays away, as in Music. Like the progress bar it moves by
 /// the distance dragged, so brushing its loud end never jumps to full volume.
 struct VolumeSlider: View {
+    @Environment(Player.self) private var player
     @State private var volume = SystemVolume()
     @State private var dragging = false
     /// The level when the finger came down.
@@ -96,10 +99,10 @@ struct VolumeSlider: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(.white.opacity(0.25))
                     Capsule().fill(.white.opacity(dragging ? 1 : 0.85))
-                        .frame(width: max(0, width * CGFloat(volume.level)))
+                        .frame(width: max(0, width * CGFloat(level)))
                         // Changes from the volume buttons ease in with the system's smooth spring;
                         // under the finger the bar follows directly, with no lag.
-                        .animation(dragging ? nil : .smooth, value: volume.level)
+                        .animation(dragging ? nil : .smooth, value: level)
                 }
                 .frame(height: dragging ? 12 : 6)
                 .frame(maxHeight: .infinity)
@@ -108,9 +111,9 @@ struct VolumeSlider: View {
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
                             dragging = true
-                            let start = dragStart ?? volume.level
+                            let start = dragStart ?? (Platform.isMac ? Float(value.startLocation.x / width) : level)
                             dragStart = start
-                            volume.set(min(1, max(0, start + Float(value.translation.width / width))))
+                            setLevel(start + Float(value.translation.width / width))
                         }
                         .onEnded { _ in
                             dragging = false
@@ -124,13 +127,23 @@ struct VolumeSlider: View {
                 .accessibilityHidden(true)
         }
         .foregroundStyle(.white.opacity(0.6))
-        .background { HiddenSystemVolumeView(volume: volume).frame(width: 1, height: 1) }
+        .background {
+            if !Platform.isMac { HiddenSystemVolumeView(volume: volume).frame(width: 1, height: 1) }
+        }
         .accessibilityElement()
         .accessibilityLabel("Volume")
-        .accessibilityValue(Text(Double(volume.level), format: .percent.precision(.fractionLength(0))))
+        .accessibilityValue(Text(Double(level), format: .percent.precision(.fractionLength(0))))
         .accessibilityAdjustableAction { direction in
-            volume.set(min(1, max(0, volume.level + (direction == .increment ? 0.0625 : -0.0625))))
+            setLevel(level + (direction == .increment ? 0.0625 : -0.0625))
         }
+    }
+
+    /// The phone's media volume; on the Mac, where no app can set the system's, Koda's own.
+    private var level: Float { Platform.isMac ? player.volume : volume.level }
+
+    private func setLevel(_ value: Float) {
+        let clamped = min(1, max(0, value))
+        if Platform.isMac { player.volume = clamped } else { volume.set(clamped) }
     }
 }
 

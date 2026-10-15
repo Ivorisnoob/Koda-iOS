@@ -147,6 +147,12 @@ public final class Player {
         set { avPlayer.isMuted = newValue }
     }
 
+    /// Koda's own level, 0 to 1, under the system's. The Mac has no system slider an app can
+    /// drive, so its volume control sets this; normalization still applies on top.
+    public var volume: Float = 1 {
+        didSet { applyLoudness(currentLoudnessDb) }
+    }
+
     /// How many songs AVFoundation holds right now: 2 when the next one is preloaded.
     var loadedItemCount: Int { avPlayer.items().count }
 
@@ -473,10 +479,10 @@ public final class Player {
     private func applyLoudness(_ loudnessDb: Double?) {
         currentLoudnessDb = loudnessDb
         guard normalizesVolume, let db = loudnessDb, db > 0 else {
-            avPlayer.volume = 1
+            avPlayer.volume = volume
             return
         }
-        avPlayer.volume = Float(max(0.4, pow(10, -db / 20)))
+        avPlayer.volume = volume * Float(max(0.4, pow(10, -db / 20)))
     }
 
     /// Move to `item` after a skip: instantly when it is the preloaded one, otherwise by loading it.

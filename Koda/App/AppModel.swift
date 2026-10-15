@@ -16,6 +16,11 @@ final class AppModel {
     let downloads: Downloads
 
     var isNowPlayingPresented = false
+    /// The panel Now Playing should show when it next opens or is already open: the Mac's
+    /// player bar and menu bar open lyrics and the queue directly.
+    var requestedPanel: NowPlayingView.Panel?
+    /// Profile and Settings, opened from Home or from the Mac's Settings menu item.
+    var isProfilePresented = false
     /// The playing song's colours, kept ready for Now Playing while it is closed.
     let nowPlayingPalette = PaletteModel()
     /// Set to switch tabs from anywhere, e.g. "Go to artist" inside Now Playing.
@@ -56,6 +61,9 @@ final class AppModel {
         player.onListened = { [library] song, seconds in
             if settings.savesListeningHistory { library.addListening(seconds, to: song) }
         }
+        if Platform.isMac, UserDefaults.standard.object(forKey: "volume") != nil {
+            player.volume = UserDefaults.standard.float(forKey: "volume")
+        }
         player.artworkLoader = { @MainActor url in
             guard let image = await ImagePipeline.shared.image(url, pixels: 600) else { return nil }
             return ImagePipeline.nowPlayingArtwork(image)
@@ -66,6 +74,19 @@ final class AppModel {
     func open(_ route: Route) {
         isNowPlayingPresented = false
         pendingRoute = route
+    }
+
+    /// Open Now Playing on one of its panels.
+    func showNowPlaying(_ panel: NowPlayingView.Panel) {
+        guard player.current != nil else { return }
+        requestedPanel = panel
+        isNowPlayingPresented = true
+    }
+
+    /// Switch tabs from the menu bar, closing Now Playing if it covers them.
+    func go(to tab: AppTab) {
+        isNowPlayingPresented = false
+        selectedTab = tab
     }
 
     func addToPlaylist(_ songs: [Song]) {
@@ -114,6 +135,7 @@ final class AppModel {
         player.persistQueueNow()
         library.flush()
         downloads.store.flush()
+        if Platform.isMac { UserDefaults.standard.set(player.volume, forKey: "volume") }
     }
 }
 

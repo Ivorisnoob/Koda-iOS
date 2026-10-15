@@ -142,7 +142,6 @@ struct HomeView: View {
     @Environment(Player.self) private var player
     @Environment(Library.self) private var library
     @State private var model = HomeModel()
-    @State private var showsProfile = false
 
     var body: some View {
         ScrollView {
@@ -181,11 +180,10 @@ struct HomeView: View {
         .navigationTitle(greeting)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { showsProfile = true } label: { AvatarView(size: 32) }
+                Button { app.isProfilePresented = true } label: { AvatarView(size: 32) }
                     .accessibilityLabel("Profile and Settings")
             }
         }
-        .sheet(isPresented: $showsProfile) { ProfileView() }
         .refreshable { await load() }
         .task { if model.state.value == nil { await load() } }
     }
