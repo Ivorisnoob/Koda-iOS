@@ -23,24 +23,27 @@ public struct Taste: Sendable, Equatable {
     @MainActor
     public init(library: Library, now: Date = Date(), maxSeeds: Int = 4) {
         let liked = Set(library.liked.map(\.id))
-        let scored = library.songStats.values.map { stats -> (SongStats, Double) in
+        var scored: [(stats: SongStats, score: Double)] = []
+        for stats in library.songStats.values {
             let age = max(0, now.timeIntervalSince(stats.lastPlayed))
-            let decay = pow(0.5, age / Self.halfLife)
-            let listening = Double(stats.plays) + stats.seconds / 180
-            return (stats, (listening + (liked.contains(stats.song.id) ? 2 : 0)) * decay)
+            let decay: Double = pow(0.5, age / Self.halfLife)
+            let bonus: Double = liked.contains(stats.song.id) ? 2 : 0
+            let listening = Double(stats.plays) + stats.seconds / 180 + bonus
+            let score = listening * decay
+            if score > 0 { scored.append((stats, score)) }
         }
-        .filter { $0.1 > 0 }
-        .sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0.song.id < $1.0.song.id }
+        scored.sort { a, b in a.score != b.score ? a.score > b.score : a.stats.song.id < b.stats.song.id }
 
         var artistScores: [String: Double] = [:]
-        for (stats, score) in scored {
-            artistScores[Self.leadArtist(stats.song), default: 0] += score
+        for entry in scored {
+            artistScores[Self.leadArtist(entry.stats.song), default: 0] += entry.score
         }
-        let artists = artistScores.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.map(\.key).filter { !$0.isEmpty }
+        let ranked = artistScores.sorted { a, b in a.value != b.value ? a.value > b.value : a.key < b.key }
+        let artists = ranked.map(\.key).filter { !$0.isEmpty }
 
         var seeds: [Song] = []
         for artist in artists where seeds.count < maxSeeds {
-            if let best = scored.first(where: { Self.leadArtist($0.0.song) == artist }) { seeds.append(best.0.song) }
+            if let best = scored.first(where: { Self.leadArtist($0.stats.song) == artist }) { seeds.append(best.stats.song) }
         }
         self.artists = artists
         self.seeds = seeds
