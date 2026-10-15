@@ -33,7 +33,17 @@ public final class Player {
         case failed(String)
     }
 
-    public private(set) var queue = PlayQueue()
+    /// Not observed as a whole: any change to it, a repeat tap included, would redraw every
+    /// view showing the playing song, which is every song row in the app. Views watch the
+    /// parts below instead, each published only when it actually changes.
+    @ObservationIgnored public private(set) var queue = PlayQueue() {
+        didSet { publishQueue() }
+    }
+    public private(set) var current: Song?
+    /// What plays after the current song, in order.
+    public private(set) var upcoming: [QueueItem] = []
+    public private(set) var isShuffled = false
+    public private(set) var repeatMode: RepeatMode = .off
     public private(set) var phase: Phase = .idle
     /// Whether the listener wants sound: true while loading or buffering a song they pressed play on.
     public private(set) var wantsToPlay = false
@@ -114,7 +124,16 @@ public final class Player {
 
     // MARK: - Reading
 
-    public var current: Song? { queue.current?.song }
+    /// Copy into the observed parts what changed in the queue, and nothing else, so a
+    /// view is told only when the part it shows is different.
+    private func publishQueue() {
+        let song = queue.current?.song
+        if current != song { current = song }
+        if isShuffled != queue.isShuffled { isShuffled = queue.isShuffled }
+        if repeatMode != queue.repeatMode { repeatMode = queue.repeatMode }
+        let next = queue.upcoming
+        if !upcoming.elementsEqual(next) { upcoming = Array(next) }
+    }
 
     public var isMuted: Bool {
         get { avPlayer.isMuted }
