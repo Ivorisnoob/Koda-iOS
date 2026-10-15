@@ -17,7 +17,9 @@ struct MacRootView: View {
     @Environment(Library.self) private var library
     @Environment(Downloads.self) private var downloads
     @State private var section: MacSection? = .home
-    @State private var path: [Route] = []
+    /// Each section's own trail of pages, so going back to a section returns to where you were.
+    @State private var paths: [MacSection: [Route]] = [:]
+    @State private var home = HomeModel()
     @State private var search = SearchModel()
     @FocusState private var searchFocused: Bool
     @State private var showsNowPlaying = false
@@ -33,7 +35,7 @@ struct MacRootView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 210, ideal: 236, max: 320)
         } detail: {
-            NavigationStack(path: $path) {
+            NavigationStack(path: path) {
                 detail
                     .routeDestinations()
             }
@@ -68,7 +70,6 @@ struct MacRootView: View {
             }
         }
         .task(id: search.query) { await search.suggest(music: model.music) }
-        .onChange(of: section) { _, _ in path = [] }
         .onChange(of: model.selectedTab) { _, tab in
             switch tab {
             case .home: section = .home
@@ -86,7 +87,7 @@ struct MacRootView: View {
         .onChange(of: model.pendingRoute) { _, route in
             guard let route else { return }
             model.pendingRoute = nil
-            path.append(route)
+            path.wrappedValue.append(route)
         }
         .fullScreenCover(isPresented: $showsNowPlaying) {
             NowPlayingView()
@@ -189,7 +190,10 @@ struct MacRootView: View {
     /// A Mac sidebar row: 13-point text, the symbol in the accent colour, and when selected the
     /// soft rounded fill the Mac's own sidebars use, rather than Catalyst's iPad-sized row.
     private func sidebarRow(_ title: String, _ systemImage: String, _ target: MacSection, count: Int = 0) -> some View {
-        Button { section = target } label: {
+        Button {
+            // Clicking the section you're in goes back to its first page, as Music's sidebar does.
+            if section == target { paths[target] = [] } else { section = target }
+        } label: {
             MacSidebarLabel(title: title, systemImage: systemImage, isSelected: section == target, count: count)
         }
         .buttonStyle(.plain)
@@ -225,7 +229,7 @@ struct MacRootView: View {
     @ViewBuilder
     private var detail: some View {
         switch section ?? .home {
-        case .home: MacHomeView()
+        case .home: MacHomeView(model: home)
         case .browse: MacBrowseView(search: search) { submit($0) }
         case .search: MacSearchResultsView(model: search)
         case .recent: SavedSongsView(title: "Recently Played", source: .recent)
@@ -240,6 +244,11 @@ struct MacRootView: View {
         }
     }
 
+    private var path: Binding<[Route]> {
+        let current = section ?? .home
+        return Binding(get: { paths[current] ?? [] }, set: { paths[current] = $0 })
+    }
+
     private func submit(_ text: String) {
         if let link = YouTubeLink(text: text) {
             search.query = ""
@@ -249,6 +258,7 @@ struct MacRootView: View {
         guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         if model.settings.savesSearchHistory { library.recordSearch(text) }
         search.query = text
+        paths[.search] = []
         section = .search
         Task { await search.search(text, music: model.music) }
     }

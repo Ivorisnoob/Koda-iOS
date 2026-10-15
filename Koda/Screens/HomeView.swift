@@ -37,6 +37,8 @@ final class HomeModel {
     private(set) var mixPending = true
     /// Portraits for the listener's top artists, by channel id; fetched after the page shows.
     private(set) var artistPhotos: [String: Artwork] = [:]
+    /// When Home last loaded, so a window coming back to it after a long while can refresh it.
+    private(set) var loadedAt: Date?
 
     func load(music: YouTubeMusic, library: Library) async {
         if state.value == nil { state = .loading }
@@ -62,6 +64,7 @@ final class HomeModel {
             content.quickPicksTitle = title
             content.quickPicks = songs.isEmpty ? content.trending : songs
             state = .loaded(content)
+            loadedAt = Date()
             if mix == nil, taste.isEmpty, !content.trending.isEmpty {
                 mix = Mix(artists: Array(Set(content.trending.map(Taste.leadArtist))).sorted().prefix(3).map { $0 },
                           songs: content.trending, isPersonal: false)
@@ -184,7 +187,10 @@ struct HomeView: View {
                     .accessibilityLabel("Profile and Settings")
             }
         }
-        .refreshable { await load() }
+        .refreshable {
+            await app.music.clearPageCache()
+            await load()
+        }
         .task { if model.state.value == nil { await load() } }
     }
 

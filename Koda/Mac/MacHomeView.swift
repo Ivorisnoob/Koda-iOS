@@ -8,7 +8,8 @@ struct MacHomeView: View {
     @Environment(AppModel.self) private var app
     @Environment(Player.self) private var player
     @Environment(Library.self) private var library
-    @State private var model = HomeModel()
+    /// Owned by the window, so Home is still there after a visit to another section.
+    let model: HomeModel
     @State private var width: CGFloat = 1000
 
     var body: some View {
@@ -38,12 +39,22 @@ struct MacHomeView: View {
         .navigationTitle("Home")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Refresh", systemImage: "arrow.clockwise") { Task { await load() } }
+                Button("Refresh", systemImage: "arrow.clockwise") {
+                    Task {
+                        await app.music.clearPageCache()
+                        await load()
+                    }
+                }
                     .keyboardShortcut("r", modifiers: .command)
                     .help("Refresh Home (⌘R)")
             }
         }
-        .task { if model.state.value == nil { await load() } }
+        .task {
+            // Loaded already: shown as it was. After half an hour it refreshes quietly in place.
+            if model.state.value == nil || model.loadedAt.map({ Date().timeIntervalSince($0) > 1800 }) == true {
+                await load()
+            }
+        }
     }
 
     private var header: some View {

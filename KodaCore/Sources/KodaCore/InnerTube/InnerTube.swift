@@ -55,6 +55,7 @@ struct InnerTube: Sendable {
 public final class YouTubeMusic: Sendable {
     let api: InnerTube
     let streams: StreamResolver
+    private let pages = PageCache()
 
     public init(defaultsSuite: String? = nil) {
         let config = URLSessionConfiguration.default
@@ -76,17 +77,28 @@ public final class YouTubeMusic: Sendable {
     }
 
     public func explore() async throws -> ShelfPage {
-        Pages.shelves(try await api.music("browse", ["browseId": "FEmusic_explore"]))
+        try await pages.value("explore") { [api] in
+            Pages.shelves(try await api.music("browse", ["browseId": "FEmusic_explore"]))
+        }
     }
 
     public func charts() async throws -> ShelfPage {
-        Pages.shelves(try await api.music("browse", ["browseId": "FEmusic_charts"]))
+        try await pages.value("charts") { [api] in
+            Pages.shelves(try await api.music("browse", ["browseId": "FEmusic_charts"]))
+        }
     }
 
     public func mood(_ mood: Mood) async throws -> ShelfPage {
-        var payload: [String: Any] = ["browseId": mood.browseId]
-        if let params = mood.params { payload["params"] = params }
-        return Pages.shelves(try await api.music("browse", payload))
+        try await pages.value("mood|\(mood.browseId)|\(mood.params ?? "")") { [api] in
+            var payload: [String: Any] = ["browseId": mood.browseId]
+            if let params = mood.params { payload["params"] = params }
+            return Pages.shelves(try await api.music("browse", payload))
+        }
+    }
+
+    /// Forget fetched pages, for a pull to refresh that should really fetch again.
+    public func clearPageCache() async {
+        await pages.removeAll()
     }
 
     // MARK: Search
@@ -105,6 +117,10 @@ public final class YouTubeMusic: Sendable {
     // MARK: Pages
 
     public func album(_ id: String) async throws -> AlbumPage {
+        try await pages.value("album|\(id)") { try await self.fetchAlbum(id) }
+    }
+
+    private func fetchAlbum(_ id: String) async throws -> AlbumPage {
         let root = try await api.music("browse", ["browseId": id])
         guard var page = Pages.album(root, id: id) else { throw MusicError.badResponse(200) }
         // Signed out, tracks that have a music video are listed as the video.
@@ -116,12 +132,18 @@ public final class YouTubeMusic: Sendable {
     }
 
     public func artist(_ id: String) async throws -> ArtistPage {
-        let root = try await api.music("browse", ["browseId": id])
-        guard let page = Pages.artist(root, id: id) else { throw MusicError.badResponse(200) }
-        return page
+        try await pages.value("artist|\(id)") { [api] in
+            let root = try await api.music("browse", ["browseId": id])
+            guard let page = Pages.artist(root, id: id) else { throw MusicError.badResponse(200) }
+            return page
+        }
     }
 
     public func playlist(_ id: String) async throws -> PlaylistPage {
+        try await pages.value("playlist|\(id)") { try await self.fetchPlaylist(id) }
+    }
+
+    private func fetchPlaylist(_ id: String) async throws -> PlaylistPage {
         let browseId = id.hasPrefix("VL") ? id : "VL" + id
         let root = try await api.music("browse", ["browseId": browseId])
         guard let page = Pages.playlist(root, id: String(id.trimmingPrefix("VL"))) else { throw MusicError.badResponse(200) }
