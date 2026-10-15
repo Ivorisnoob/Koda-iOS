@@ -28,6 +28,9 @@ struct MacRootView: View {
     @State private var renaming: UserPlaylist?
     @State private var deleting: UserPlaylist?
     @Environment(\.openWindow) private var openWindow
+    /// The player bar's cover and the window's size, for Now Playing to zoom out of the cover.
+    @State private var barArtwork: CGRect = .zero
+    @State private var windowSize: CGSize = .zero
 
     var body: some View {
         dialogs(nowPlayingLayer(routing(searching(splitView))))
@@ -42,12 +45,14 @@ struct MacRootView: View {
                 detail
                     .routeDestinations()
             }
+            // While the player covers the window, the page's title and buttons step away.
+            .toolbarVisibility(showsNowPlaying ? .hidden : .automatic, for: .navigationBar)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if player.current != nil {
-                    MacPlayerBar { panel in
+                    MacPlayerBar(open: { panel in
                         model.requestedPanel = panel
                         showsNowPlaying = true
-                    }
+                    }, onArtworkFrame: { barArtwork = $0 })
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -110,20 +115,19 @@ struct MacRootView: View {
         content
         // Now Playing is a layer of the window rather than a full-screen presentation: presented,
         // Catalyst hides the window's toolbar under it and the sidebar button came back stuck.
-        // While it is open the window's toolbar steps away, as Music's full-window player does,
-        // leaving only the window buttons over the song's colours. It fades and settles in
-        // rather than sliding up, which is the phone's gesture, not the Mac's.
+        // Now Playing grows out of the player bar's cover and goes back into it, the way the Mac
+        // opens anything from where it sits; the sidebar button steps away while it is open.
         .overlay {
             if showsNowPlaying {
                 NowPlayingView()
                     .environment(\.closeNowPlaying) { showsNowPlaying = false }
-                    .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.97)),
-                                            removal: .opacity.combined(with: .scale(scale: 0.985))))
+                    .transition(.scale(scale: 0.06, anchor: artworkAnchor).combined(with: .opacity))
                     .zIndex(1)
             }
         }
-        .animation(.smooth(duration: 0.32), value: showsNowPlaying)
-        .background { WindowToolbarHider(isHidden: showsNowPlaying) }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { windowSize = $0 }
+        .animation(.spring(response: 0.5, dampingFraction: 0.88), value: showsNowPlaying)
+        .toolbar(removing: showsNowPlaying ? .sidebarToggle : nil)
         .onChange(of: model.isNowPlayingPresented) { _, shown in showsNowPlaying = shown }
         .onChange(of: showsNowPlaying) { _, shown in model.isNowPlayingPresented = shown }
         .task(id: player.current?.artwork) { await model.nowPlayingPalette.load(player.current?.artwork) }
@@ -280,6 +284,12 @@ struct MacRootView: View {
         case .lastFM: MacLastFMView()
         case .userPlaylist(let id): UserPlaylistView(id: id).id(id)
         }
+    }
+
+    /// The bar's cover as a point in the window, where Now Playing starts from; the bar's corner before it has one.
+    private var artworkAnchor: UnitPoint {
+        guard barArtwork != .zero, windowSize.width > 0, windowSize.height > 0 else { return UnitPoint(x: 0.3, y: 0.96) }
+        return UnitPoint(x: barArtwork.midX / windowSize.width, y: barArtwork.midY / windowSize.height)
     }
 
     private var path: Binding<[Route]> {
@@ -441,29 +451,5 @@ private struct MacUpNextRow: View {
         .onHover { hovering = $0 }
         .contextMenu { SongMenuItems(song: item.song) }
         .help("Play Now")
-    }
-}
-
-/// Hides the window's toolbar and title while `isHidden`, keeping the window buttons: what the
-/// Mac does for a full-window view. Catalyst gives the window's titlebar to its scene.
-private struct WindowToolbarHider: UIViewRepresentable {
-    let isHidden: Bool
-
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
-        view.isUserInteractionEnabled = false
-        return view
-    }
-
-    func updateUIView(_ view: UIView, context: Context) {
-        #if targetEnvironment(macCatalyst)
-        let hidden = isHidden
-        // The view may not be in its window yet on the first update.
-        DispatchQueue.main.async {
-            guard let titlebar = view.window?.windowScene?.titlebar else { return }
-            titlebar.toolbar?.isVisible = !hidden
-            titlebar.titleVisibility = hidden ? .hidden : .visible
-        }
-        #endif
     }
 }

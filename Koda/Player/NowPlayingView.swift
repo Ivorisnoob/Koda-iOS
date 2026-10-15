@@ -175,6 +175,8 @@ struct NowPlayingView: View {
             }
         }
         .padding(.top, 8)
+        // The window's close, minimise and zoom buttons sit at the top left on the Mac.
+        .padding(.leading, Platform.isMac ? 64 : 0)
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: app.sleepTimer.isActive)
     }
 
