@@ -1,15 +1,72 @@
 import Foundation
 
+/// One sung word, or part of one: providers split long words into syllables.
+public struct LyricWord: Hashable, Sendable {
+    public var text: String
+    /// Seconds from the start of the song.
+    public var start: TimeInterval
+    public var end: TimeInterval
+    /// A space follows before the next word; false between syllables of one word.
+    public var spaceAfter: Bool
+
+    public init(text: String, start: TimeInterval, end: TimeInterval, spaceAfter: Bool = true) {
+        self.text = text
+        self.start = start
+        self.end = end
+        self.spaceAfter = spaceAfter
+    }
+
+    public var duration: TimeInterval { max(end - start, 0.001) }
+}
+
+/// Who sings a line, when the lyrics say.
+public enum LyricVoice: Hashable, Sendable {
+    /// The main singer, or the only one.
+    case lead
+    /// The second singer of a duet.
+    case duet
+    /// Several singers at once.
+    case together
+}
+
 public struct LyricLine: Hashable, Sendable, Identifiable {
     public var id: Int
     /// Seconds from the start of the song.
     public var time: TimeInterval
     public var text: String
+    /// Word timings, when the provider has them; empty for line-timed lyrics.
+    public var words: [LyricWord]
+    /// Backing vocals sung over the line, timed the same way.
+    public var background: [LyricWord]
+    /// When the line is done; nil when only its start is known.
+    public var end: TimeInterval?
+    public var voice: LyricVoice
+
+    public init(id: Int, time: TimeInterval, text: String, words: [LyricWord] = [], background: [LyricWord] = [],
+                end: TimeInterval? = nil, voice: LyricVoice = .lead) {
+        self.id = id
+        self.time = time
+        self.text = text
+        self.words = words
+        self.background = background
+        self.end = end
+        self.voice = voice
+    }
+
+    public var isWordTimed: Bool { !words.isEmpty }
 }
 
 public enum Lyrics: Sendable, Equatable {
     case synced([LyricLine])
     case plain(String)
+
+    /// Word timing beats line timing beats none.
+    var quality: Int {
+        switch self {
+        case .plain: 0
+        case .synced(let lines): lines.contains(where: \.isWordTimed) ? 2 : 1
+        }
+    }
 
     /// The line playing at `time`: the last one that has started.
     public static func index(of time: TimeInterval, in lines: [LyricLine]) -> Int? {
@@ -26,77 +83,79 @@ public enum Lyrics: Sendable, Equatable {
         return found
     }
 
-    /// `[mm:ss.xx] text` lines. Several stamps on one line repeat it; lines without one are dropped.
+    /// `[mm:ss.xx] text` lines, with `<mm:ss.xx>` word stamps when the file has them
+    /// (enhanced LRC). Several line stamps repeat the line; lines without one are dropped.
     public static func parseLRC(_ text: String) -> [LyricLine] {
-        var lines: [(TimeInterval, String)] = []
+        struct Raw { var time: TimeInterval; var text: String; var words: [LyricWord] }
+        var lines: [Raw] = []
         let stamp = /\[(\d{1,3}):(\d{1,2}(?:[.:]\d{1,3})?)\]/
+        let wordStamp = /<(\d{1,3}):(\d{1,2}(?:[.:]\d{1,3})?)>/
+        func seconds(_ minutes: Substring, _ rest: Substring) -> TimeInterval {
+            (Double(minutes) ?? 0) * 60 + (Double(rest.replacingOccurrences(of: ":", with: ".")) ?? 0)
+        }
         for raw in text.split(whereSeparator: \.isNewline) {
             let matches = raw.matches(of: stamp)
             guard let last = matches.last else { continue }
-            let words = raw[last.range.upperBound...].trimmingCharacters(in: .whitespaces)
-            for match in matches {
-                let minutes = Double(match.output.1) ?? 0
-                let seconds = Double(match.output.2.replacingOccurrences(of: ":", with: ".")) ?? 0
-                lines.append((minutes * 60 + seconds, words))
+            let body = raw[last.range.upperBound...]
+            let wordMatches = body.matches(of: wordStamp)
+            var words: [LyricWord] = []
+            for (index, match) in wordMatches.enumerated() {
+                let textEnd = index + 1 < wordMatches.count ? wordMatches[index + 1].range.lowerBound : body.endIndex
+                let segment = body[match.range.upperBound..<textEnd]
+                let trimmed = segment.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else { continue }
+                let start = seconds(match.output.1, match.output.2)
+                let end = index + 1 < wordMatches.count ? seconds(wordMatches[index + 1].output.1, wordMatches[index + 1].output.2) : start
+                words.append(LyricWord(text: trimmed, start: start, end: end, spaceAfter: segment.last?.isWhitespace ?? true))
+            }
+            let display = body.replacing(wordStamp, with: "").trimmingCharacters(in: .whitespaces)
+            for (index, match) in matches.enumerated() {
+                // Word stamps belong to the first time the line is sung; repeats are line-timed.
+                lines.append(Raw(time: seconds(match.output.1, match.output.2), text: display, words: index == 0 ? words : []))
             }
         }
-        return lines.sorted { $0.0 < $1.0 }.enumerated().map { LyricLine(id: $0.offset, time: $0.element.0, text: $0.element.1) }
-    }
-}
-
-/// Lyrics from LRCLIB, matched by artist, title and length.
-public struct LyricsClient: Sendable {
-    let session: URLSession
-
-    public init(session: URLSession = .shared) {
-        self.session = session
+        let sorted = lines.sorted { $0.time < $1.time }
+        return finish(sorted.map { LyricLine(id: 0, time: $0.time, text: $0.text, words: $0.words) })
     }
 
-    public func lyrics(for song: Song) async -> Lyrics? {
-        let artist = song.artists.first?.name ?? song.artistLine
-        if let exact = await get(artist: artist, title: song.title, album: song.album?.title, duration: song.duration) {
-            return exact
+    /// Number the lines in order, and fill in end times a provider left out:
+    /// a word ends where the next starts, a line where the next line starts.
+    static func finish(_ lines: [LyricLine]) -> [LyricLine] {
+        let sorted = lines.sorted { $0.time < $1.time }
+        return sorted.enumerated().map { index, line in
+            var line = line
+            line.id = index
+            let nextLine = index + 1 < sorted.count ? sorted[index + 1].time : nil
+            let fallbackEnd = nextLine.map { max($0, line.time) } ?? line.time + 5
+            line.words = complete(line.words, lineEnd: line.end ?? fallbackEnd)
+            line.background = complete(line.background, lineEnd: line.end ?? fallbackEnd)
+            if line.end == nil {
+                line.end = (line.words + line.background).map(\.end).max() ?? nextLine
+            }
+            return line
         }
-        return await search(artist: artist, title: song.title, duration: song.duration)
     }
 
-    private func get(artist: String, title: String, album: String?, duration: TimeInterval?) async -> Lyrics? {
-        var components = URLComponents(string: "https://lrclib.net/api/get")!
-        components.queryItems = [URLQueryItem(name: "artist_name", value: artist), URLQueryItem(name: "track_name", value: title)]
-        if let album { components.queryItems?.append(URLQueryItem(name: "album_name", value: album)) }
-        if let duration { components.queryItems?.append(URLQueryItem(name: "duration", value: String(Int(duration.rounded())))) }
-        guard let json = await fetch(components.url!), json.isObject else { return nil }
-        return Self.lyrics(from: json)
-    }
-
-    private func search(artist: String, title: String, duration: TimeInterval?) async -> Lyrics? {
-        var components = URLComponents(string: "https://lrclib.net/api/search")!
-        components.queryItems = [URLQueryItem(name: "artist_name", value: artist), URLQueryItem(name: "track_name", value: title)]
-        guard let json = await fetch(components.url!) else { return nil }
-        // A different cut of the song (live, extended) is timed for a different recording.
-        let candidates = json.array.filter { item in
-            guard let duration, let other = item["duration"].double else { return true }
-            return abs(other - duration) <= 10
+    private static func complete(_ words: [LyricWord], lineEnd: TimeInterval) -> [LyricWord] {
+        let sorted = words.sorted { $0.start < $1.start }
+        return sorted.enumerated().map { index, word in
+            guard word.end <= word.start else { return word }
+            var word = word
+            let next = index + 1 < sorted.count ? sorted[index + 1].start : lineEnd
+            word.end = word.start + min(max(next - word.start, 0.08), 10)
+            return word
         }
-        let best = candidates.first { $0["syncedLyrics"].nonEmpty != nil } ?? candidates.first
-        return best.flatMap(Self.lyrics(from:))
     }
 
-    private func fetch(_ url: URL) async -> JSON? {
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 10
-        request.setValue("Koda iOS (https://github.com/Ivorisnoob/Koda-iOS)", forHTTPHeaderField: "User-Agent")
-        guard let (data, response) = try? await session.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
-        return try? JSON(data: data)
-    }
-
-    static func lyrics(from item: JSON) -> Lyrics? {
-        if let synced = item["syncedLyrics"].nonEmpty {
-            let lines = Lyrics.parseLRC(synced)
-            if !lines.isEmpty { return .synced(lines) }
+    /// Lead and duet by alternating singers; a group agent sings together. One singer is always lead.
+    static func voices(for agents: [String?], groups: Set<String>) -> [LyricVoice] {
+        var people: [String] = []
+        for agent in agents.compactMap({ $0 }) where !groups.contains(agent) && !people.contains(agent) { people.append(agent) }
+        guard people.count >= 2 else { return agents.map { _ in .lead } }
+        return agents.map { agent in
+            guard let agent else { return .lead }
+            if groups.contains(agent) { return .together }
+            return (people.firstIndex(of: agent) ?? 0) % 2 == 1 ? .duet : .lead
         }
-        if let plain = item["plainLyrics"].nonEmpty { return .plain(plain) }
-        return nil
     }
 }
