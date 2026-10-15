@@ -39,51 +39,65 @@ struct ArtistView: View {
         .task { if state.value == nil { await load() } }
     }
 
+    /// The Mac's artist header. YouTube's banner is a wide image with the portrait pillarboxed
+    /// inside, which shows its bars across a wide window; so the Mac draws the artist's own
+    /// photo twice instead: blurred into a field of their colours that fills any width and
+    /// fades into the page, and sharp, round, beside their name and what to play.
     private func macHero(name: String) -> some View {
-        let banner = state.value?.banner ?? summary.artwork
-        return GeometryReader { geometry in
-            ZStack(alignment: .bottomLeading) {
-                ArtistHeroImage(artwork: banner, preview: summary.artwork, tint: palette.palette.mesh[4],
-                                width: geometry.size.width, height: geometry.size.height)
-                LinearGradient(stops: [.init(color: .clear, location: 0.35), .init(color: .black.opacity(0.7), location: 1)],
-                               startPoint: .top, endPoint: .bottom)
-                HStack(alignment: .bottom, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        if name.isEmpty {
-                            Capsule().fill(.white.opacity(0.25)).frame(width: 240, height: 44).shimmer()
-                        } else {
-                            Text(name)
-                                .font(.system(size: 52, weight: .heavy))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.5)
-                        }
-                        if let audience = state.value?.artist.subtitle {
-                            Text(audience).font(.title3.weight(.medium)).opacity(0.85)
-                        }
+        let portrait = state.value?.artist.artwork ?? summary.artwork
+        let shape = Circle()
+        return ZStack(alignment: .bottomLeading) {
+            MacArtistAmbience(artwork: portrait, tint: palette.palette.mesh[4])
+            HStack(alignment: .bottom, spacing: 28) {
+                ArtworkView(artwork: portrait, size: 196, circle: true)
+                    .overlay(shape.strokeBorder(.white.opacity(0.18), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.3), radius: 24, y: 12)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Artist")
+                        .font(.caption.weight(.semibold))
+                        .textCase(.uppercase)
+                        .foregroundStyle(.secondary)
+                        .padding(.bottom, 2)
+                    if name.isEmpty {
+                        Capsule().fill(.primary.opacity(0.12)).frame(width: 260, height: 44).shimmer()
+                    } else {
+                        Text(name)
+                            .font(.system(size: 46, weight: .heavy))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.5)
+                            .textSelection(.enabled)
                     }
-                    Spacer(minLength: 0)
-                    if let page = state.value {
-                        HStack(spacing: 10) {
-                            MacPlayButtons(shuffleTitle: "Radio",
-                                           play: { if !page.topSongs.isEmpty { player.play(page.topSongs) } },
-                                           shuffle: { if let first = page.topSongs.first { player.startRadio(from: first) } })
-                                .disabled(page.topSongs.isEmpty)
-                            let saved = library.isSaved(artist: summary.id)
-                            Button(saved ? "Remove from Library" : "Add to Library", systemImage: saved ? "checkmark" : "plus") {
-                                library.toggleSave(page.artist)
+                    Text(state.value?.artist.subtitle ?? " ")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .padding(.top, 2)
+                    HStack(spacing: 10) {
+                        let topSongs = state.value?.topSongs ?? []
+                        MacPlayButtons(shuffleTitle: "Radio",
+                                       play: { if !topSongs.isEmpty { player.play(topSongs) } },
+                                       shuffle: { if let first = topSongs.first { player.startRadio(from: first) } })
+                            .disabled(topSongs.isEmpty)
+                        let saved = library.isSaved(artist: summary.id)
+                        Button(saved ? "Remove from Library" : "Add to Library", systemImage: saved ? "checkmark" : "plus") {
+                            library.toggleSave(state.value?.artist ?? summary)
+                        }
+                        .buttonStyle(MacIconButtonStyle())
+                        .help(saved ? "Remove from Library" : "Add to Library")
+                        MacMoreMenu {
+                            ShareLink(item: URL(string: "https://music.youtube.com/channel/\(summary.id)")!) {
+                                Label("Share", systemImage: "square.and.arrow.up")
                             }
-                            .buttonStyle(MacIconButtonStyle())
-                            .help(saved ? "Remove from Library" : "Add to Library")
                         }
-                        .environment(\.colorScheme, .dark)
                     }
+                    .padding(.top, 16)
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, MacMetrics.gutter)
-                .padding(.bottom, 28)
+                Spacer(minLength: 0)
             }
+            .padding(.horizontal, MacMetrics.gutter)
+            .padding(.bottom, 8)
         }
-        .frame(height: 380)
+        .frame(height: 340)
     }
 
     @ViewBuilder
@@ -350,6 +364,35 @@ private struct ArtistHeroImage: View {
             let loaded = await ImagePipeline.shared.image(url, pixels: pixels)
             withAnimation(.easeOut(duration: 0.25)) { image = loaded }
         }
+        .accessibilityHidden(true)
+    }
+}
+
+/// An artist's photo as a field of their colours: enlarged and blurred far past its edges so
+/// it fills any width without bars, softened, and faded into the page at the bottom.
+private struct MacArtistAmbience: View {
+    let artwork: Artwork?
+    let tint: Color
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                tint.opacity(0.5)
+                ArtworkView(artwork: artwork, size: 160, cornerRadius: 0, fillsFrame: true)
+                    .frame(width: geometry.size.width * 1.2, height: geometry.size.height * 1.6)
+                    .blur(radius: 70, opaque: true)
+                    .saturation(1.3)
+                    .opacity(colorScheme == .dark ? 0.75 : 0.6)
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
+            }
+            .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.55),
+                                         .init(color: .clear, location: 1)],
+                                 startPoint: .top, endPoint: .bottom))
+        }
+        .ignoresSafeArea(edges: .top)
+        .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 }
