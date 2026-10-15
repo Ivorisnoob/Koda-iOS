@@ -13,6 +13,7 @@ final class AppModel {
     let sleepTimer: SleepTimer
     let profile: Profile
     let settings = AppSettings()
+    let downloads: Downloads
 
     var isNowPlayingPresented = false
     /// The playing song's colours, kept ready for Now Playing while it is closed.
@@ -40,6 +41,15 @@ final class AppModel {
         sleepTimer = SleepTimer(player: player)
         profile = Profile(directory: directory)
         let settings = settings
+        // Songs can be gigabytes; they come back from YouTube, so they stay out of iCloud backups.
+        var audioDirectory = directory.appending(path: "Audio")
+        try? FileManager.default.createDirectory(at: audioDirectory, withIntermediateDirectories: true)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? audioDirectory.setResourceValues(values)
+        let audio = AudioStore(directory: audioDirectory, cacheLimit: settings.cacheLimit.rawValue)
+        player.audioStore = audio
+        downloads = Downloads(store: audio, music: music)
         player.onSongStarted = { [library] song in
             if settings.savesListeningHistory { library.recordPlay(song) }
         }
@@ -103,6 +113,7 @@ final class AppModel {
     func saveState() {
         player.persistQueueNow()
         library.flush()
+        downloads.store.flush()
     }
 }
 

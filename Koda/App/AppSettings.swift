@@ -46,6 +46,17 @@ final class AppSettings {
         }
     }
 
+    /// The most the songs kept from listening may take; downloads don't count.
+    enum CacheLimit: Int64, CaseIterable, Identifiable {
+        case small = 500_000_000
+        case standard = 1_000_000_000
+        case large = 2_000_000_000
+        case huge = 5_000_000_000
+
+        var id: Self { self }
+        var title: String { rawValue.formatted(.byteCount(style: .file)) }
+    }
+
     private let defaults = UserDefaults.standard
 
     var theme: Theme { didSet { defaults.set(theme.rawValue, forKey: Keys.theme) } }
@@ -63,6 +74,7 @@ final class AppSettings {
     /// Off, nothing played is added to history, Quick picks or stats.
     var savesListeningHistory: Bool { didSet { defaults.set(savesListeningHistory, forKey: Keys.listeningHistory) } }
     var savesSearchHistory: Bool { didSet { defaults.set(savesSearchHistory, forKey: Keys.searchHistory) } }
+    var cacheLimit: CacheLimit { didSet { defaults.set(cacheLimit.rawValue, forKey: Keys.cacheLimit) } }
 
     private enum Keys {
         static let theme = "koda.theme"
@@ -75,6 +87,7 @@ final class AppSettings {
         static let duetSides = "koda.lyrics.duetSides"
         static let listeningHistory = "koda.history.listening"
         static let searchHistory = "koda.history.search"
+        static let cacheLimit = "koda.cache.limit"
     }
 
     init() {
@@ -91,6 +104,7 @@ final class AppSettings {
         duetSides = d.object(forKey: Keys.duetSides) as? Bool ?? true
         savesListeningHistory = d.object(forKey: Keys.listeningHistory) as? Bool ?? true
         savesSearchHistory = d.object(forKey: Keys.searchHistory) as? Bool ?? true
+        cacheLimit = (d.object(forKey: Keys.cacheLimit) as? Int64).flatMap(CacheLimit.init(rawValue:)) ?? .standard
     }
 
     /// The services to ask, best first.

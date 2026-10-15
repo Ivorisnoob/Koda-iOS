@@ -244,11 +244,56 @@ struct PrivacySettingsView: View {
 // MARK: - Storage
 
 struct StorageSettingsView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(Player.self) private var player
+    @Environment(Downloads.self) private var downloads
     @State private var artworkBytes: Int?
+    @State private var cacheBytes: Int64?
     @State private var cleared = 0
+    @State private var confirmsRemoveAll = false
 
     var body: some View {
+        @Bindable var player = player
+        @Bindable var downloads = downloads
+        @Bindable var settings = app.settings
         Form {
+            Section {
+                LabeledContent("Downloads", value: downloads.bytes.formatted(.byteCount(style: .file)))
+                Toggle("Download over Mobile Data", isOn: $downloads.allowsCellular)
+                Button("Remove All Downloads", role: .destructive) { confirmsRemoveAll = true }
+                    .disabled(downloads.songs.isEmpty)
+            } header: {
+                Text("Downloads")
+            } footer: {
+                Text("Downloaded songs play without a connection and stay until you remove them.")
+            }
+            Section {
+                Toggle("Keep Songs You Play", isOn: $player.cachesWhileStreaming)
+                Picker("Up To", selection: $settings.cacheLimit) {
+                    ForEach(AppSettings.CacheLimit.allCases) { Text($0.title).tag($0) }
+                }
+                .onChange(of: settings.cacheLimit) { _, limit in
+                    downloads.store.cacheLimit = limit.rawValue
+                    Task { await measure() }
+                }
+                LabeledContent("Used") {
+                    if let cacheBytes {
+                        Text(cacheBytes.formatted(.byteCount(style: .file))).contentTransition(.numericText())
+                    } else {
+                        ProgressView()
+                    }
+                }
+                Button("Clear Listening Cache", role: .destructive) {
+                    downloads.store.clearCache()
+                    cleared += 1
+                    Task { await measure() }
+                }
+                .disabled((cacheBytes ?? 0) == 0)
+            } header: {
+                Text("Listening Cache")
+            } footer: {
+                Text("Songs are kept as you play them, so they start at once next time and play without a connection. Past the limit, the ones played longest ago are removed.")
+            }
             Section {
                 LabeledContent("Artwork") {
                     if let artworkBytes {
@@ -272,12 +317,22 @@ struct StorageSettingsView: View {
         }
         .navigationTitle("Storage")
         .sensoryFeedback(.success, trigger: cleared)
+        .confirmationDialog("Remove all downloads?", isPresented: $confirmsRemoveAll, titleVisibility: .visible) {
+            Button("Remove All Downloads", role: .destructive) { downloads.removeAll() }
+        } message: {
+            Text("They'll play from YouTube again, which needs a connection.")
+        }
         .task { await measure() }
     }
 
     private func measure() async {
         let bytes = await ImagePipeline.shared.diskUsage()
-        withAnimation { artworkBytes = bytes }
+        let store = downloads.store
+        let audio = await Task.detached { store.cacheBytes }.value
+        withAnimation {
+            artworkBytes = bytes
+            cacheBytes = audio
+        }
     }
 }
 

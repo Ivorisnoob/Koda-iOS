@@ -61,6 +61,13 @@ public final class Player {
             applyLoudness(currentLoudnessDb)
         }
     }
+    /// Keep songs on the phone as they stream, so they start at once next time.
+    public var cachesWhileStreaming = true {
+        didSet { persistSettings() }
+    }
+    /// Where songs' audio is kept on the phone. A song held whole plays from its file, with
+    /// no request to YouTube; nil plays everything from YouTube.
+    @ObservationIgnored public var audioStore: AudioStore?
 
     /// The last known position and when it was sampled; `position(at:)` runs it forward.
     public private(set) var timeAnchor = TimeAnchor(position: 0, date: .distantPast, rate: 0)
@@ -343,9 +350,9 @@ public final class Player {
 
         Task {
             do {
-                let stream = try await music.stream(for: item.song.id)
+                let stream = try await audio(for: item.song)
                 guard token == generation, queue.current?.id == item.id else { return }
-                let playerItem = makeItem(stream)
+                let playerItem = makeItem(stream, song: item.song)
                 occurrences[ObjectIdentifier(playerItem)] = item.id
                 avPlayer.insert(playerItem, after: nil)
                 if position > 1 {
@@ -417,12 +424,12 @@ public final class Player {
             return
         }
         Task {
-            guard let stream = try? await music.stream(for: wanted.song.id) else { return }
+            guard let stream = try? await audio(for: wanted.song) else { return }
             guard token == nextGeneration, queue.current?.id == currentId,
                   queue.peekNext(automatic: true)?.id == wanted.id,
                   let playing = avPlayer.currentItem, occurrences[ObjectIdentifier(playing)] == currentId,
                   avPlayer.items().count == 1 else { return }
-            let item = makeItem(stream)
+            let item = makeItem(stream, song: wanted.song)
             occurrences[ObjectIdentifier(item)] = wanted.id
             preloaded.insert(ObjectIdentifier(item))
             trace("preloaded \(wanted.song.title)")
@@ -430,9 +437,21 @@ public final class Player {
         }
     }
 
-    private func makeItem(_ original: ResolvedStream) -> AVPlayerItem {
+    /// The song's audio: its file when the phone holds all of it, else a stream from YouTube.
+    private func audio(for song: Song) async throws -> ResolvedStream {
+        if let file = audioStore?.completeStream(song.id) { return file }
+        return try await music.stream(for: song.id)
+    }
+
+    private func makeItem(_ original: ResolvedStream, song: Song) -> AVPlayerItem {
         let stream = streamRewriter?(original) ?? original
-        let asset = AVURLAsset(url: stream.url, options: [AVURLAssetHTTPUserAgentKey: stream.userAgent])
+        let asset: AVURLAsset
+        if !stream.url.isFileURL, cachesWhileStreaming, streamRewriter == nil, let audioStore,
+           let loader = CachingLoader(stream: stream, song: song, store: audioStore) {
+            asset = loader.makeAsset()
+        } else {
+            asset = AVURLAsset(url: stream.url, options: [AVURLAssetHTTPUserAgentKey: stream.userAgent])
+        }
         let item = AVPlayerItem(asset: asset)
         // AVFoundation reads YouTube's fragmented M4A as twice its real length
         // and plays silence for the second half instead of ending. [verified
@@ -561,7 +580,7 @@ public final class Player {
             queue.trimHistory(keeping: Self.historyLimit)
             if let song = queue.current?.song { duration = song.duration ?? duration }
             Task {
-                if let stream = try? await music.stream(for: queue.current?.song.id ?? "") {
+                if let song = queue.current?.song, let stream = try? await audio(for: song) {
                     if let total = stream.duration { duration = total }
                     applyLoudness(stream)
                     updateNowPlaying()
@@ -690,6 +709,8 @@ public final class Player {
         }
         generation += 1
         let token = generation
+        // A whole file that fails to play is damaged; it is fetched again rather than retried.
+        if audioStore?.entry(current.song.id)?.isComplete == true { audioStore?.discard(current.song.id) }
         Task {
             await music.streamFailed(current.song.id)
             guard token == generation, queue.current?.id == id else { return }
@@ -868,6 +889,7 @@ public final class Player {
     private func persistSettings() {
         UserDefaults.standard.set(autoplay, forKey: "koda.autoplay")
         UserDefaults.standard.set(normalizesVolume, forKey: "koda.normalizeVolume")
+        UserDefaults.standard.set(cachesWhileStreaming, forKey: "koda.cacheWhileStreaming")
     }
 
     /// The last queue comes back paused; nothing loads until play is pressed.
@@ -876,8 +898,10 @@ public final class Player {
         let defaults = UserDefaults.standard
         let savedAutoplay = defaults.object(forKey: "koda.autoplay") as? Bool
         let savedNormalize = defaults.object(forKey: "koda.normalizeVolume") as? Bool
+        let savedCaching = defaults.object(forKey: "koda.cacheWhileStreaming") as? Bool
         if let savedAutoplay { autoplay = savedAutoplay }
         if let savedNormalize { normalizesVolume = savedNormalize }
+        if let savedCaching { cachesWhileStreaming = savedCaching }
         guard let queueFile, let data = try? Data(contentsOf: queueFile),
               let saved = try? JSONDecoder().decode(Saved.self, from: data), saved.queue.current != nil else { return }
         queue = saved.queue

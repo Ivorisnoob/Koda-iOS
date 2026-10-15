@@ -54,6 +54,11 @@ struct PlaylistView: View {
                 }
                 .sensoryFeedback(.success, trigger: saved)
             }
+            if !songs.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    DownloadButton(songs: songs, allSongs: allSongs)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu("More", systemImage: "ellipsis") {
                     if !songs.isEmpty {
@@ -87,6 +92,21 @@ struct PlaylistView: View {
         } catch {
             state = .failed(error.friendlyMessage)
         }
+    }
+
+    /// Every song, loading the pages not scrolled to yet, for downloading the whole playlist.
+    private func allSongs() async -> [Song] {
+        while continuation != nil {
+            if loadingMore {
+                try? await Task.sleep(for: .milliseconds(100))
+                continue
+            }
+            let before = songs.count
+            await loadMore()
+            // A page that failed to load: download what there is.
+            if songs.count == before { break }
+        }
+        return songs
     }
 
     private func loadMore() async {

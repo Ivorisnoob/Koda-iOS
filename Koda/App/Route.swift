@@ -18,7 +18,7 @@ enum Route: Hashable {
     case songList(title: String, subtitle: String?, songs: [Song])
 
     enum SongSource: Hashable {
-        case liked, recent
+        case liked, recent, downloaded
     }
 
     init?(_ item: MusicItem) {

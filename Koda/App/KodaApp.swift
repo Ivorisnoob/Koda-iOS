@@ -12,6 +12,7 @@ struct KodaApp: App {
                 .environment(model)
                 .environment(model.player)
                 .environment(model.library)
+                .environment(model.downloads)
                 .preferredColorScheme(model.settings.theme.colorScheme)
         }
         .onChange(of: scenePhase) { _, phase in

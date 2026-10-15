@@ -74,6 +74,11 @@ struct AlbumView: View {
                 }
                 .sensoryFeedback(.success, trigger: saved)
             }
+            if let songs = state.value?.songs, !songs.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    DownloadButton(songs: songs)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu("More", systemImage: "ellipsis") {
                     if let songs = state.value?.songs, !songs.isEmpty {

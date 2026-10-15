@@ -57,10 +57,15 @@ struct SavedSongsView: View {
     let source: Route.SongSource
     @Environment(Player.self) private var player
     @Environment(Library.self) private var library
+    @Environment(Downloads.self) private var downloads
     @AppStorage("koda.likedSort") private var sort: SongSort = .recent
 
     private var songs: [Song] {
-        guard source == .liked else { return library.recent }
+        switch source {
+        case .recent: return library.recent
+        case .downloaded: return downloads.songs
+        case .liked: break
+        }
         let liked = library.liked
         switch sort {
         case .recent: return liked
@@ -92,9 +97,12 @@ struct SavedSongsView: View {
                             .tint(.indigo)
                     }
                     .swipeActions(edge: .trailing) {
-                        if source == .liked {
+                        switch source {
+                        case .liked:
                             Button("Unlike", systemImage: "heart.slash", role: .destructive) { library.toggleLike(song) }
-                        } else {
+                        case .downloaded:
+                            Button("Remove Download", systemImage: "trash", role: .destructive) { downloads.remove([song]) }
+                        case .recent:
                             Button("Add to Queue", systemImage: "text.line.last.and.arrowtriangle.forward") { player.addToQueue([song]) }
                                 .tint(.orange)
                         }
@@ -104,14 +112,23 @@ struct SavedSongsView: View {
         .listStyle(.plain)
         .overlay {
             if songs.isEmpty {
-                ContentUnavailableView(source == .liked ? "No Liked Songs" : "Nothing Played Yet",
-                                       systemImage: source == .liked ? "heart" : "clock",
-                                       description: Text(source == .liked ? "Songs you like appear here." : "Songs you play appear here."))
+                switch source {
+                case .liked:
+                    ContentUnavailableView("No Liked Songs", systemImage: "heart", description: Text("Songs you like appear here."))
+                case .recent:
+                    ContentUnavailableView("Nothing Played Yet", systemImage: "clock", description: Text("Songs you play appear here."))
+                case .downloaded:
+                    ContentUnavailableView("No Downloads", systemImage: "arrow.down.circle",
+                                           description: Text("Download songs, albums and playlists to play them without a connection."))
+                }
             }
         }
         .toolbar {
             if source == .recent, !songs.isEmpty {
                 Button("Clear", role: .destructive) { library.clearHistory() }
+            }
+            if source == .liked, !songs.isEmpty {
+                DownloadButton(songs: songs)
             }
             if source == .liked, songs.count > 1 {
                 Menu("Sort", systemImage: "arrow.up.arrow.down") {

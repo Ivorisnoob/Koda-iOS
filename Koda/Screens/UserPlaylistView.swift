@@ -69,6 +69,9 @@ struct UserPlaylistView: View {
                     }
                     .fontWeight(editMode.isEditing ? .semibold : .regular)
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    DownloadButton(songs: playlist.songs)
+                }
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu("More", systemImage: "ellipsis") {
