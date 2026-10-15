@@ -151,8 +151,8 @@ struct LyricRow: View {
     let hasDuet: Bool
     let offset: TimeInterval
 
-    static let fontSize: CGFloat = 30
-    static let backgroundFontSize: CGFloat = 21
+    nonisolated static let fontSize: CGFloat = 30
+    nonisolated static let backgroundFontSize: CGFloat = 21
     static let font = Font.system(size: fontSize, weight: .bold)
     static let backgroundFont = Font.system(size: backgroundFontSize, weight: .semibold)
 
@@ -298,7 +298,7 @@ private struct FillMask: View {
 }
 
 /// Whether a space follows a word in a `WordFlow`; false between syllables of one word.
-struct SpaceAfter: LayoutValueKey {
+nonisolated struct SpaceAfter: LayoutValueKey {
     static let defaultValue = true
 }
 
