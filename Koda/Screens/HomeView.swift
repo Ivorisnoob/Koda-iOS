@@ -11,6 +11,14 @@ final class HomeModel {
         var newReleases: Shelf?
         var chartArtists: [ArtistSummary] = []
         var trending: [Song] = []
+
+        /// The shape of a loaded Home, for drawing it redacted while the real one loads.
+        static let placeholder: Content = {
+            var content = Content()
+            content.quickPicks = Song.placeholders(8)
+            content.shelves = [Shelf(title: "Shelf title", items: (0..<6).map { .album(AlbumSummary.placeholder($0)) })]
+            return content
+        }()
     }
 
     /// Songs woven from the radios of what the listener plays most.
@@ -19,16 +27,20 @@ final class HomeModel {
         var songs: [Song]
         /// Built from listening; otherwise trending songs for someone new.
         var isPersonal: Bool
+
+        static let placeholder = Mix(artists: ["Artist name", "Artist"], songs: Song.placeholders(3), isPersonal: true)
     }
 
     private(set) var state: LoadState<Content> = .loading
     private(set) var mix: Mix?
-    private(set) var isMixing = false
+    /// Your Mix is still to come: its card keeps its place, redacted, until it does.
+    private(set) var mixPending = true
     /// Portraits for the listener's top artists, by channel id; fetched after the page shows.
     private(set) var artistPhotos: [String: Artwork] = [:]
 
     func load(music: YouTubeMusic, library: Library) async {
         if state.value == nil { state = .loading }
+        if mix == nil { mixPending = true }
         let recent = library.recent
         let taste = Taste(library: library)
         async let home = music.home()
@@ -61,13 +73,16 @@ final class HomeModel {
             group.addTask { await self.buildMix(music: music, taste: taste, recent: recent) }
             group.addTask { await self.loadArtistPhotos(music: music, library: library) }
         }
+        // Radios that all failed still leave a card: trending songs, as for someone new.
+        if mix == nil, let trending = state.value?.trending, !trending.isEmpty {
+            mix = Mix(artists: Array(Set(trending.map(Taste.leadArtist))).sorted().prefix(3).map { $0 }, songs: trending, isPersonal: false)
+        }
+        withAnimation(.smooth) { mixPending = false }
     }
 
     /// Your Mix: a radio from each top artist's favourite song, woven together.
     private func buildMix(music: YouTubeMusic, taste: Taste, recent: [Song]) async {
         guard !taste.isEmpty else { return }
-        isMixing = true
-        defer { isMixing = false }
         let radios = await withTaskGroup(of: (Int, [Song]).self) { group in
             for (index, seed) in taste.seeds.enumerated() {
                 group.addTask { (index, (try? await music.radio(for: seed.id).songs) ?? []) }
@@ -134,7 +149,13 @@ struct HomeView: View {
             Group {
                 switch model.state {
                 case .loading:
-                    HomeSkeleton()
+                    // Home's own sections from stand-in content, so loading has the page's shape.
+                    LazyVStack(alignment: .leading, spacing: 30) {
+                        sections(.placeholder)
+                    }
+                    .padding(.top, 8)
+                    .padding(.bottom, 28)
+                    .loadingPlaceholder()
                 case .failed(let message):
                     ContentUnavailableView {
                         Label("Couldn't Load", systemImage: "wifi.exclamationmark")
@@ -175,11 +196,9 @@ struct HomeView: View {
             MixHero(mix: mix)
                 .padding(.horizontal, 20)
                 .transition(.scale(scale: 0.96).combined(with: .opacity))
-        } else if model.isMixing {
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(.quaternary)
-                .frame(height: 340)
-                .placeholderPulse()
+        } else if model.mixPending {
+            MixHero(mix: .placeholder)
+                .loadingPlaceholder()
                 .padding(.horizontal, 20)
         }
 
@@ -545,31 +564,3 @@ private struct JumpBackIn: View {
     }
 }
 
-// MARK: - Loading
-
-/// The shape of Home in shimmering placeholders while it loads.
-private struct HomeSkeleton: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(.quaternary)
-                .frame(height: 340)
-                .padding(.horizontal, 20)
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                ForEach(0..<4) { _ in
-                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.quaternary).frame(height: 56)
-                }
-            }
-            .padding(.horizontal, 20)
-            HStack(spacing: 14) {
-                ForEach(0..<3) { _ in
-                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.quaternary).frame(width: 140, height: 140)
-                }
-            }
-            .padding(.horizontal, 20)
-        }
-        .placeholderPulse()
-        .padding(.top, 8)
-        .accessibilityLabel("Loading")
-    }
-}
