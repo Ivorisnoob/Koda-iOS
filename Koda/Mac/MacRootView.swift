@@ -110,17 +110,20 @@ struct MacRootView: View {
         content
         // Now Playing is a layer of the window rather than a full-screen presentation: presented,
         // Catalyst hides the window's toolbar under it and the sidebar button came back stuck.
+        // While it is open the window's toolbar steps away, as Music's full-window player does,
+        // leaving only the window buttons over the song's colours. It fades and settles in
+        // rather than sliding up, which is the phone's gesture, not the Mac's.
         .overlay {
             if showsNowPlaying {
                 NowPlayingView()
                     .environment(\.closeNowPlaying) { showsNowPlaying = false }
-                    .ignoresSafeArea()
-                    .transition(.move(edge: .bottom))
+                    .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.97)),
+                                            removal: .opacity.combined(with: .scale(scale: 0.985))))
                     .zIndex(1)
             }
         }
-        .animation(.spring(response: 0.45, dampingFraction: 1), value: showsNowPlaying)
-        .toolbar(removing: showsNowPlaying ? .sidebarToggle : nil)
+        .animation(.smooth(duration: 0.32), value: showsNowPlaying)
+        .background { WindowToolbarHider(isHidden: showsNowPlaying) }
         .onChange(of: model.isNowPlayingPresented) { _, shown in showsNowPlaying = shown }
         .onChange(of: showsNowPlaying) { _, shown in model.isNowPlayingPresented = shown }
         .task(id: player.current?.artwork) { await model.nowPlayingPalette.load(player.current?.artwork) }
@@ -438,5 +441,29 @@ private struct MacUpNextRow: View {
         .onHover { hovering = $0 }
         .contextMenu { SongMenuItems(song: item.song) }
         .help("Play Now")
+    }
+}
+
+/// Hides the window's toolbar and title while `isHidden`, keeping the window buttons: what the
+/// Mac does for a full-window view. Catalyst gives the window's titlebar to its scene.
+private struct WindowToolbarHider: UIViewRepresentable {
+    let isHidden: Bool
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        #if targetEnvironment(macCatalyst)
+        let hidden = isHidden
+        // The view may not be in its window yet on the first update.
+        DispatchQueue.main.async {
+            guard let titlebar = view.window?.windowScene?.titlebar else { return }
+            titlebar.toolbar?.isVisible = !hidden
+            titlebar.titleVisibility = hidden ? .hidden : .visible
+        }
+        #endif
     }
 }

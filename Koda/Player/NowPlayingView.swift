@@ -148,7 +148,10 @@ struct NowPlayingView: View {
                 SleepTimerPill()
                     .transition(.scale(scale: 0.8).combined(with: .opacity))
             } else {
-                Capsule().fill(.white.opacity(0.4)).frame(width: 36, height: 5)
+                // The phone's grab handle; on the Mac the player closes with its button or Esc.
+                if !Platform.isMac {
+                    Capsule().fill(.white.opacity(0.4)).frame(width: 36, height: 5)
+                }
             }
             Spacer()
             if let song = player.current {
