@@ -14,6 +14,7 @@ struct ArtworkView: View {
     var fillsFrame = false
 
     @Environment(\.displayScale) private var scale
+    @Environment(\.colorScheme) private var colorScheme
     @State private var image: UIImage?
 
     private var pixels: Int { Int((size * scale).rounded(.up)) }
@@ -25,6 +26,9 @@ struct ArtworkView: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
+                    // A video's thumbnail is 4:3 with the 16:9 picture letterboxed inside: enlarged
+                    // to the picture's height, the bars fall outside the square instead of edging it.
+                    .scaleEffect(isLetterboxed(image) ? 4.0 / 3.0 : 1)
                     .transition(.opacity)
             } else {
                 Rectangle()
@@ -39,7 +43,11 @@ struct ArtworkView: View {
         .frame(width: fillsFrame ? nil : size, height: fillsFrame ? nil : size)
         .frame(maxWidth: fillsFrame ? .infinity : nil, maxHeight: fillsFrame ? .infinity : nil)
         .clipShape(shape)
-        .overlay(shape.strokeBorder(.primary.opacity(0.06), lineWidth: 0.5))
+        // A hairline so a white cover keeps its edge on a white page. Black, and only in light
+        // mode: drawn in the primary colour it was a bright ring around dark covers in dark mode.
+        .overlay {
+            if colorScheme == .light { shape.strokeBorder(.black.opacity(0.08), lineWidth: 0.5) }
+        }
         .task(id: url) {
             guard let url else {
                 image = nil
@@ -53,6 +61,12 @@ struct ArtworkView: View {
             withAnimation(.easeOut(duration: 0.2)) { image = loaded }
         }
         .accessibilityHidden(true)
+    }
+
+    /// YouTube's video thumbnails (i.ytimg.com) come 4:3, with black bars above and below the picture.
+    private func isLetterboxed(_ image: UIImage) -> Bool {
+        guard let host = url?.host(), host.contains("ytimg.com"), image.size.height > 0 else { return false }
+        return abs(image.size.width / image.size.height - 4.0 / 3.0) < 0.02
     }
 
     private var shape: AnyInsettableShape {

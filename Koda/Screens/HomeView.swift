@@ -271,7 +271,7 @@ struct HomeView: View {
 
 /// The first thing on Home: the listener's mix as a card in its covers' colours, three
 /// of its covers along the top and a button that plays it.
-private struct MixHero: View {
+struct MixHero: View {
     let mix: HomeModel.Mix
     @Environment(Player.self) private var player
     /// One palette per cover; the background weaves all three together.
@@ -439,7 +439,7 @@ private struct PressReporting: ButtonStyle {
 // MARK: - Jump back in
 
 /// Up to eight things the listener keeps going back to, as a row of covers.
-private struct JumpBackIn: View {
+struct JumpBackIn: View {
     @Environment(Library.self) private var library
 
     private static let limit = 8
@@ -461,7 +461,10 @@ private struct JumpBackIn: View {
         }
     }
 
-    private var items: [Item] {
+    private var items: [Item] { Self.items(in: library) }
+
+    /// What the listener keeps going back to, for the phone's row and the Mac's shelf alike.
+    static func items(in library: Library) -> [Item] {
         let limit = Self.limit
         var items: [Item] = []
         if !library.liked.isEmpty { items.append(.liked(count: library.liked.count, songs: library.liked)) }
@@ -486,19 +489,60 @@ private struct JumpBackIn: View {
         if items.count >= 2 {
             ShelfView(title: "Jump back in") {
                 ForEach(items) { item in
-                    NavigationLink(value: route(item)) { card(item) }
+                    NavigationLink(value: Self.route(item)) { card(item) }
                         .buttonStyle(.plain)
                 }
             }
         }
     }
 
-    private func route(_ item: Item) -> Route {
+    static func route(_ item: Item) -> Route {
         switch item {
         case .liked: .songs(title: "Liked Songs", source: .liked)
         case .userPlaylist(let p): .userPlaylist(p.id)
         case .album(let a): .album(a)
         case .playlist(let p): .playlist(p)
+        }
+    }
+
+    static func title(_ item: Item) -> String {
+        switch item {
+        case .liked: "Liked Songs"
+        case .userPlaylist(let p): p.name
+        case .album(let a): a.title
+        case .playlist(let p): p.title
+        }
+    }
+
+    static func subtitle(_ item: Item) -> String? {
+        switch item {
+        case .liked(let count, _): songCount(count)
+        case .userPlaylist(let p): songCount(p.songs.count)
+        case .album(let a): a.artistLine.isEmpty ? nil : a.artistLine
+        case .playlist(let p): p.subtitle
+        }
+    }
+
+    /// The item's cover alone, at `size`: liked songs and the listener's playlists as mosaics.
+    @ViewBuilder
+    static func cover(_ item: Item, size: CGFloat) -> some View {
+        switch item {
+        case .liked(_, let songs):
+            PlaylistMosaic(songs: songs, size: size)
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 28, height: 28)
+                        .background(.black.opacity(0.45), in: .circle)
+                        .padding(8)
+                }
+        case .userPlaylist(let p):
+            PlaylistMosaic(songs: p.songs, size: size)
+        case .album(let a):
+            ArtworkView(artwork: a.artwork, size: size, cornerRadius: 10)
+        case .playlist(let p):
+            ArtworkView(artwork: p.artwork, size: size, cornerRadius: 10)
         }
     }
 
@@ -508,7 +552,7 @@ private struct JumpBackIn: View {
         switch item {
         case .liked(let count, let songs):
             // The listener's own liked covers, marked with a heart, rather than a stock colour.
-            CoverCard(title: "Liked Songs", subtitle: songCount(count), width: width) {
+            CoverCard(title: "Liked Songs", subtitle: Self.songCount(count), width: width) {
                 PlaylistMosaic(songs: songs, size: width)
                     .overlay(alignment: .bottomTrailing) {
                         Image(systemName: "heart.fill")
@@ -520,7 +564,7 @@ private struct JumpBackIn: View {
                     }
             }
         case .userPlaylist(let p):
-            CoverCard(title: p.name, subtitle: songCount(p.songs.count), width: width) {
+            CoverCard(title: p.name, subtitle: Self.songCount(p.songs.count), width: width) {
                 PlaylistMosaic(songs: p.songs, size: width)
             }
         case .album(let a):
@@ -530,7 +574,7 @@ private struct JumpBackIn: View {
         }
     }
 
-    private func songCount(_ count: Int) -> String {
+    private static func songCount(_ count: Int) -> String {
         count == 1 ? "1 song" : "\(count) songs"
     }
 }

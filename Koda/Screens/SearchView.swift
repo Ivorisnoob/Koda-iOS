@@ -101,6 +101,7 @@ struct SearchView: View {
                 model.query = text
                 submit(text)
             }
+            .appEnvironment(app)
         }
         .task(id: model.query) { await model.suggest(music: app.music) }
         .task { await model.loadMoods(music: app.music) }

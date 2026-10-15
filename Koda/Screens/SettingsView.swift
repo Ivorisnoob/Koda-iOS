@@ -47,6 +47,37 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    if Platform.isMac {
+                        Button {
+                            app.isProfilePresented = false
+                            app.requestedMacSection = .lastFM
+                        } label: {
+                            HStack {
+                                SettingLabel("Last.fm", systemImage: "dot.radiowaves.left.and.right", tint: .red)
+                                Spacer()
+                                Text(app.lastFM.isConnected ? (app.lastFM.isEnabled ? "On" : "Off") : "Not Connected")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        NavigationLink {
+                            LastFMSettingsView()
+                        } label: {
+                            LabeledContent {
+                                Text(app.lastFM.isConnected ? (app.lastFM.isEnabled ? "On" : "Off") : "Not Connected")
+                            } label: {
+                                SettingLabel("Last.fm", systemImage: "dot.radiowaves.left.and.right", tint: .red)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Scrobbling")
+                } footer: {
+                    Text("Keep a record of what you play on your Last.fm profile.")
+                }
+
+                Section {
                     NavigationLink {
                         PrivacySettingsView()
                     } label: {

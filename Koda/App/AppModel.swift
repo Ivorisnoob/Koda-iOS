@@ -14,6 +14,7 @@ final class AppModel {
     let profile: Profile
     let settings = AppSettings()
     let downloads: Downloads
+    let lastFM: LastFM
 
     var isNowPlayingPresented = false
     /// The panel Now Playing should show when it next opens or is already open: the Mac's
@@ -21,6 +22,8 @@ final class AppModel {
     var requestedPanel: NowPlayingView.Panel?
     /// Profile and Settings, opened from Home or from the Mac's Settings menu item.
     var isProfilePresented = false
+    /// A sidebar place for the Mac's window to go to, asked for from elsewhere, e.g. Settings.
+    var requestedMacSection: MacSection?
     /// The playing song's colours, kept ready for Now Playing while it is closed.
     let nowPlayingPalette = PaletteModel()
     /// Set to switch tabs from anywhere, e.g. "Go to artist" inside Now Playing.
@@ -61,6 +64,26 @@ final class AppModel {
         player.onListened = { [library] song, seconds in
             if settings.savesListeningHistory { library.addListening(seconds, to: song) }
         }
+        let lastFM = LastFM(directory: directory)
+        self.lastFM = lastFM
+        player.onItemStarted = { [lastFM, player] item in
+            let song = item.song
+            lastFM.started(item.id, artist: song.scrobbleArtist, track: song.title, album: song.album?.title ?? "",
+                           duration: song.duration ?? player.duration, isVideo: song.isVideo)
+        }
+        lastFM.isPaused = !settings.savesListeningHistory
+        // Plays that waited out a network failure or a rate limit go when it's over.
+        Task { [lastFM] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(300))
+                lastFM.syncSoon()
+            }
+        }
+        player.onItemHeard = { [lastFM, player] item, seconds in
+            let song = item.song
+            lastFM.heard(seconds, of: item.id, artist: song.scrobbleArtist, track: song.title, album: song.album?.title ?? "",
+                         duration: song.duration ?? player.duration, isVideo: song.isVideo)
+        }
         if Platform.isMac, UserDefaults.standard.object(forKey: "volume") != nil {
             player.volume = UserDefaults.standard.float(forKey: "volume")
         }
@@ -87,6 +110,27 @@ final class AppModel {
     func go(to tab: AppTab) {
         isNowPlayingPresented = false
         selectedTab = tab
+    }
+
+    enum Collection {
+        case album(AlbumSummary)
+        case playlist(PlaylistSummary)
+    }
+
+    /// Play an album or playlist from its card, without opening its page.
+    func playCollection(_ collection: Collection) {
+        Task {
+            do {
+                let songs = switch collection {
+                case .album(let album): try await music.album(album.id).songs
+                case .playlist(let playlist): try await music.playlist(playlist.id).songs
+                }
+                guard !songs.isEmpty else { return }
+                player.play(songs)
+            } catch {
+                linkError = error.friendlyMessage
+            }
+        }
     }
 
     func addToPlaylist(_ songs: [Song]) {

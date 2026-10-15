@@ -10,6 +10,7 @@ import SwiftUI
 /// few times a second, when the line changes.
 struct SyncedLyrics: View {
     let lines: [LyricLine]
+    @Environment(AppModel.self) private var app
     @Environment(Player.self) private var player
     @Environment(Library.self) private var library
     @State private var userScrolled = false
@@ -44,7 +45,7 @@ struct SyncedLyrics: View {
                         ForEach(lines) { line in
                             let isCurrent = line.id == current && interlude == nil
                             LyricRow(line: line, isCurrent: isCurrent, distance: current.map { abs(line.id - $0) } ?? line.id + 1,
-                                     hasDuet: hasDuet, offset: offset)
+                                     hasDuet: hasDuet, offset: offset, style: LyricsStyle(app.settings), player: player)
                                 .id(line.id)
                                 .contentShape(.rect)
                                 .onTapGesture {
@@ -111,6 +112,7 @@ struct SyncedLyrics: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: userScrolled)
         .sheet(item: $shareFrom) { start in
             LyricsShareSheet(lines: lines, song: start.song, startingAt: start.line)
+                .appEnvironment(app)
                 .environment(\.colorScheme, .dark)
         }
     }
@@ -176,11 +178,12 @@ struct LyricRow: View {
     let distance: Int
     let hasDuet: Bool
     let offset: TimeInterval
-
-    @Environment(AppModel.self) private var app
+    /// Passed in rather than read from the environment: the Mac draws a row's context-menu
+    /// preview outside the window, where the app's environment objects don't reach.
+    let style: LyricsStyle
+    let player: Player
 
     nonisolated static let defaultFontSize: CGFloat = 30
-    private var style: LyricsStyle { LyricsStyle(app.settings) }
     /// Where the line sits: every line on the left unless Duet Sides is on.
     private var voice: LyricVoice { style.duetSides && line.voice == .duet ? .duet : .lead }
 
@@ -204,7 +207,7 @@ struct LyricRow: View {
         VStack(alignment: alignment, spacing: 6) {
             if line.isWordTimed {
                 if isCurrent {
-                    KaraokeLine(line: line, offset: offset, alignment: alignment, style: style)
+                    KaraokeLine(line: line, offset: offset, alignment: alignment, style: style, player: player)
                 } else {
                     WordFlow(alignment: alignment, spacing: style.spacing) {
                         ForEach(Array(line.words.enumerated()), id: \.offset) { _, word in
@@ -248,7 +251,7 @@ private struct KaraokeLine: View {
     let offset: TimeInterval
     let alignment: HorizontalAlignment
     let style: LyricsStyle
-    @Environment(Player.self) private var player
+    let player: Player
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var motion: Bool { style.motion && !reduceMotion }

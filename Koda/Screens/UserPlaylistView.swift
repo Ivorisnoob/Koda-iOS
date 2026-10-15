@@ -16,7 +16,7 @@ struct UserPlaylistView: View {
 
     var body: some View {
         if let playlist = library.userPlaylist(id) {
-            content(playlist)
+            if Platform.isMac { macContent(playlist) } else { content(playlist) }
         } else {
             ContentUnavailableView("Playlist Deleted", systemImage: "music.note.list")
         }
@@ -97,6 +97,82 @@ struct UserPlaylistView: View {
                 dismiss()
                 library.deletePlaylist(id)
             }
+        } message: {
+            Text("The songs stay wherever else you saved them.")
+        }
+    }
+
+    /// The Mac's playlist page: the mosaic beside the name, songs in columns, and each song's
+    /// menu able to move it or take it out, where the phone drags and swipes.
+    private func macContent(_ playlist: UserPlaylist) -> some View {
+        MacPage(spacing: 28) {
+            MacCollectionHeader(
+                kind: "Your Playlist",
+                title: playlist.name,
+                byline: nil,
+                detail: detail(playlist),
+                canPlay: !playlist.songs.isEmpty,
+                play: { player.play(playlist.songs) },
+                shuffle: { player.play(playlist.songs, startAt: Int.random(in: 0..<max(playlist.songs.count, 1)), shuffled: true) }
+            ) {
+                PlaylistMosaic(songs: playlist.songs, size: 232, cornerRadius: 12)
+            } actions: {
+                if !playlist.songs.isEmpty {
+                    DownloadButton(songs: playlist.songs)
+                        .buttonStyle(MacIconButtonStyle())
+                }
+                Menu {
+                    if !playlist.songs.isEmpty {
+                        Button("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward") { player.playNext(playlist.songs) }
+                        Button("Add to Queue", systemImage: "text.line.last.and.arrowtriangle.forward") { player.addToQueue(playlist.songs) }
+                        Divider()
+                    }
+                    Button("Rename…", systemImage: "pencil") {
+                        draftName = playlist.name
+                        renaming = true
+                    }
+                    Button("Delete Playlist…", systemImage: "trash", role: .destructive) { confirmDelete = true }
+                } label: {
+                    Label("More", systemImage: "ellipsis")
+                }
+                .menuIndicator(.hidden)
+                .buttonStyle(MacIconButtonStyle())
+                .help("More")
+            }
+            if playlist.songs.isEmpty {
+                ContentUnavailableView {
+                    Label("No Songs Yet", systemImage: "music.note.list")
+                } description: {
+                    Text("Right-click any song, or open its ••• menu, and choose Add to Playlist.")
+                }
+                .frame(maxWidth: .infinity, minHeight: 280)
+            } else {
+                MacTrackList(songs: playlist.songs, play: { player.play(playlist.songs, startAt: $0) }, rowMenu: { index in
+                    AnyView(Section {
+                        Button("Move Up", systemImage: "arrow.up") {
+                            library.moveSongs(fromOffsets: IndexSet(integer: index), toOffset: index - 1, inPlaylist: id)
+                        }
+                        .disabled(index == 0)
+                        Button("Move Down", systemImage: "arrow.down") {
+                            library.moveSongs(fromOffsets: IndexSet(integer: index), toOffset: index + 2, inPlaylist: id)
+                        }
+                        .disabled(index >= playlist.songs.count - 1)
+                        Button("Remove from Playlist", systemImage: "minus.circle", role: .destructive) {
+                            library.removeSongs(atOffsets: IndexSet(integer: index), fromPlaylist: id)
+                        }
+                    })
+                })
+            }
+        }
+        .background { PlaylistGlow(songs: playlist.songs) }
+        .navigationTitle(playlist.name)
+        .alert("Rename Playlist", isPresented: $renaming) {
+            TextField("Name", text: $draftName)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") { library.renamePlaylist(id, to: draftName) }
+        }
+        .confirmationDialog("Delete “\(playlist.name)”?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete Playlist", role: .destructive) { library.deletePlaylist(id) }
         } message: {
             Text("The songs stay wherever else you saved them.")
         }
@@ -286,6 +362,7 @@ private struct PlaylistPickerModifier: ViewModifier {
             get: { isOnTop ? app.playlistTarget : nil },
             set: { if isOnTop { app.playlistTarget = $0 } })) { target in
             AddToPlaylistSheet(target: target)
+                .appEnvironment(app)
         }
     }
 }

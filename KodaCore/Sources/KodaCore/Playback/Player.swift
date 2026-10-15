@@ -87,6 +87,9 @@ public final class Player {
     public var onSongStarted: ((Song) -> Void)?
     /// Called every few seconds of actual sound with the seconds heard since the last call, for listening stats.
     public var onListened: ((Song, TimeInterval) -> Void)?
+    /// The same two moments for one occurrence in the queue, so a song repeated is a new play: for scrobbling.
+    public var onItemStarted: ((QueueItem) -> Void)?
+    public var onItemHeard: ((QueueItem, TimeInterval) -> Void)?
     /// Loads artwork for the lock screen; set by the app, which owns image decoding.
     public var artworkLoader: (@MainActor (URL) async -> MPMediaItemArtwork?)?
 
@@ -611,7 +614,9 @@ public final class Player {
         let playing = avPlayer.timeControlStatus == .playing
         if playing, let last = lastListenedTick, let song = current {
             // A gap longer than the tick means the app was suspended; that time was not heard.
-            onListened?(song, min(now.timeIntervalSince(last), 6))
+            let heard = min(now.timeIntervalSince(last), 6)
+            onListened?(song, heard)
+            if let item = queue.current { onItemHeard?(item, heard) }
         }
         lastListenedTick = playing ? now : nil
         // iOS can end the app in the background without warning; keep the saved position recent.
@@ -653,6 +658,7 @@ public final class Player {
         if status == .playing, let item = queue.current, startedReported != item.id {
             startedReported = item.id
             onSongStarted?(item.song)
+            onItemStarted?(item)
         }
         sampleTime()
         updateNowPlaying()

@@ -26,6 +26,7 @@ enum LibrarySort: String, CaseIterable, Identifiable {
 
 /// What the listener saved on this phone.
 struct LibraryView: View {
+    @Environment(AppModel.self) private var app
     @Environment(Library.self) private var library
     @Environment(Downloads.self) private var downloads
     @AppStorage("koda.library.sort") private var sort: LibrarySort = .recent
@@ -94,7 +95,7 @@ struct LibraryView: View {
                     .accessibilityLabel("Profile and Settings")
             }
         }
-        .sheet(isPresented: $showsProfile) { ProfileView() }
+        .sheet(isPresented: $showsProfile) { ProfileView().appEnvironment(app) }
     }
 
     // MARK: Your playlists

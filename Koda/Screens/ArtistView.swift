@@ -17,6 +17,120 @@ struct ArtistView: View {
     @ScaledMetric(relativeTo: .subheadline) private var audienceLineHeight: CGFloat = 20
 
     var body: some View {
+        if Platform.isMac { macBody } else { phoneBody }
+    }
+
+    /// The Mac's artist page: a wide banner with the name and what to do over it, top songs in
+    /// two columns, then their records, appearances and similar artists as shelves.
+    private var macBody: some View {
+        let name = state.value?.artist.name ?? summary.name
+        return ScrollView {
+            VStack(alignment: .leading, spacing: MacMetrics.sectionSpacing) {
+                macHero(name: name)
+                AsyncContent(state: state, retry: load, placeholder: .placeholder(summary)) { page in
+                    macContent(page)
+                }
+            }
+            .padding(.bottom, 40)
+        }
+        .ignoresSafeArea(edges: .top)
+        .navigationTitle(name)
+        .task { await palette.load(summary.artwork) }
+        .task { if state.value == nil { await load() } }
+    }
+
+    private func macHero(name: String) -> some View {
+        let banner = state.value?.banner ?? summary.artwork
+        return GeometryReader { geometry in
+            ZStack(alignment: .bottomLeading) {
+                ArtistHeroImage(artwork: banner, preview: summary.artwork, tint: palette.palette.mesh[4],
+                                width: geometry.size.width, height: geometry.size.height)
+                LinearGradient(stops: [.init(color: .clear, location: 0.35), .init(color: .black.opacity(0.7), location: 1)],
+                               startPoint: .top, endPoint: .bottom)
+                HStack(alignment: .bottom, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if name.isEmpty {
+                            Capsule().fill(.white.opacity(0.25)).frame(width: 240, height: 44).shimmer()
+                        } else {
+                            Text(name)
+                                .font(.system(size: 52, weight: .heavy))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.5)
+                        }
+                        if let audience = state.value?.artist.subtitle {
+                            Text(audience).font(.title3.weight(.medium)).opacity(0.85)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    if let page = state.value {
+                        HStack(spacing: 10) {
+                            MacPlayButtons(shuffleTitle: "Radio",
+                                           play: { if !page.topSongs.isEmpty { player.play(page.topSongs) } },
+                                           shuffle: { if let first = page.topSongs.first { player.startRadio(from: first) } })
+                                .disabled(page.topSongs.isEmpty)
+                            let saved = library.isSaved(artist: summary.id)
+                            Button(saved ? "Remove from Library" : "Add to Library", systemImage: saved ? "checkmark" : "plus") {
+                                library.toggleSave(page.artist)
+                            }
+                            .buttonStyle(MacIconButtonStyle())
+                            .help(saved ? "Remove from Library" : "Add to Library")
+                        }
+                        .environment(\.colorScheme, .dark)
+                    }
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, MacMetrics.gutter)
+                .padding(.bottom, 28)
+            }
+        }
+        .frame(height: 380)
+    }
+
+    @ViewBuilder
+    private func macContent(_ page: ArtistPage) -> some View {
+        if !page.topSongs.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                MacSectionTitle(title: "Top songs",
+                                seeAll: page.allSongsPlaylistId.map { .playlist(PlaylistSummary(id: $0, title: "\(page.artist.name): Songs", artwork: page.banner)) })
+                    .padding(.leading, 6)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 8, alignment: .top)], spacing: 2) {
+                    ForEach(Array(page.topSongs.enumerated()), id: \.element.id) { index, song in
+                        MacSongTile(song: song) { player.play(page.topSongs, startAt: index) }
+                    }
+                }
+            }
+            .padding(.horizontal, MacMetrics.gutter)
+        }
+        if !page.albums.isEmpty {
+            MacShelf(title: "Albums") { ForEach(page.albums) { MacItemCard(item: .album($0)) } }
+        }
+        if !page.singles.isEmpty {
+            MacShelf(title: "Singles & EPs") { ForEach(page.singles) { MacItemCard(item: .album($0)) } }
+        }
+        if !page.featuredOn.isEmpty {
+            MacShelf(title: "Featured on") { ForEach(page.featuredOn) { MacItemCard(item: .playlist($0)) } }
+        }
+        if !page.similar.isEmpty {
+            MacShelf(title: "Fans also like") { ForEach(page.similar) { MacArtistCard(artist: $0) } }
+        }
+        if let about = page.description {
+            VStack(alignment: .leading, spacing: 10) {
+                MacSectionTitle(title: "About")
+                Text(about)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(aboutExpanded ? nil : 5)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: 720, alignment: .leading)
+                Button(aboutExpanded ? "Less" : "More") { withAnimation(.snappy) { aboutExpanded.toggle() } }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+            }
+            .padding(.horizontal, MacMetrics.gutter)
+        }
+    }
+
+    private var phoneBody: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 hero

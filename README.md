@@ -87,9 +87,18 @@ xattr -dr com.apple.quarantine /Applications/Koda.app
 - Back up the whole library to one file and restore it on another iPhone
 - Pause listening or search history whenever you like
 
+### Last.fm
+
+- Scrobble what you play to your Last.fm profile, on the iPhone and the Mac
+- Off until you turn it on. Koda never asks for your password: you register your own free [Last.fm API account](https://www.last.fm/api/account/create), enter its key and secret in **Settings → Last.fm**, and approve Koda on Last.fm's page
+- A song counts once you've heard half of it or four minutes, whichever comes first; seeking doesn't count, and videos aren't scrobbled
+- Plays made offline wait on the device and send in order later, with the time you played them
+- Your profile, scrobble count and recent plays by day; pausing listening history pauses scrobbling too
+- Keys and session stay in the device's Keychain and out of backups
+
 ## Privacy
 
-Koda has no account, no analytics and no server of its own. What you like, save, play and search is stored on your iPhone and leaves it only when you back it up. Requests go to YouTube Music for music and to the lyrics services for lyrics.
+Koda has no account, no analytics and no server of its own. What you like, save, play and search is stored on your iPhone and leaves it only when you back it up. Requests go to YouTube Music for music, to the lyrics services for lyrics, and to Last.fm only if you connect it.
 
 ## Building
 

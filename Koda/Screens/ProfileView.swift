@@ -114,7 +114,7 @@ struct ProfileView: View {
                     Button("Done", systemImage: "checkmark") { dismiss() }
                 }
             }
-            .sheet(isPresented: $showsSettings) { SettingsView() }
+            .sheet(isPresented: $showsSettings) { SettingsView().appEnvironment(app) }
             .alert("Your Name", isPresented: $editingName) {
                 TextField("Name", text: $draftName)
                     .textContentType(.givenName)
@@ -395,8 +395,87 @@ struct StatsView: View {
     @State private var confirmReset = false
 
     var body: some View {
+        if Platform.isMac { macBody } else { phoneBody }
+    }
+
+    /// The Mac's stats as a dashboard: totals and the chart across the top, then top songs and
+    /// top artists side by side.
+    private var macBody: some View {
         let summary = ListeningSummary(library: library, days: range.days)
-        ScrollView {
+        return MacPage(spacing: 28) {
+            MacPageTitle(title: "Listening Stats", subtitle: "Library") {
+                Picker("Range", selection: $range) {
+                    ForEach(Span.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                if !library.songStats.isEmpty {
+                    Button("Reset…", role: .destructive) { confirmReset = true }
+                        .buttonStyle(.glass)
+                }
+            }
+            if summary.topSongs.isEmpty {
+                ContentUnavailableView("No Listening Yet", systemImage: "chart.bar",
+                                       description: Text("Your stats fill in as you play music."))
+                    .frame(maxWidth: .infinity, minHeight: 360)
+            } else {
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(spacing: 16) {
+                        StatTile(title: "Listened", value: summary.totalSeconds.listeningText, systemImage: "headphones", tint: .accentColor)
+                        StatTile(title: "Day streak", value: summary.streak == 1 ? "1 day" : "\(summary.streak) days", systemImage: "flame.fill", tint: .orange)
+                    }
+                    .frame(width: 240)
+                    if range != .year {
+                        WeekChart(days: summary.days, title: range == .week ? "Last 7 days" : "Last 30 days")
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(.horizontal, MacMetrics.gutter)
+                HStack(alignment: .top, spacing: 40) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        MacSectionTitle(title: "Top songs", subtitle: "All time")
+                        TopSongsList(stats: Array(summary.topSongs.prefix(25)))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    if !summary.topArtists.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            MacSectionTitle(title: "Top artists", subtitle: "All time")
+                            ForEach(Array(summary.topArtists.prefix(10).enumerated()), id: \.element.id) { index, artist in
+                                HStack(spacing: 12) {
+                                    Text("\(index + 1)")
+                                        .font(.callout.monospacedDigit().weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 24)
+                                    ArtworkView(artwork: artist.artwork, size: 40, circle: true)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(artist.name).font(.callout.weight(.medium)).lineLimit(1)
+                                        Text("\(artist.seconds.listeningText) · \(artist.plays == 1 ? "1 play" : "\(artist.plays) plays")")
+                                            .font(.subheadline).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.vertical, 3)
+                            }
+                        }
+                        .frame(width: 340, alignment: .topLeading)
+                    }
+                }
+                .padding(.horizontal, MacMetrics.gutter)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: range)
+        .navigationTitle("Listening Stats")
+        .confirmationDialog("Reset your listening stats?", isPresented: $confirmReset, titleVisibility: .visible) {
+            Button("Reset Stats", role: .destructive) { library.clearStats() }
+        } message: {
+            Text("Play counts and listening time start over. Liked songs and history stay.")
+        }
+    }
+
+    private var phoneBody: some View {
+        let summary = ListeningSummary(library: library, days: range.days)
+        return ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 Picker("Range", selection: $range) {
                     ForEach(Span.allCases) { Text($0.rawValue).tag($0) }
