@@ -10,6 +10,8 @@ struct ArtworkView: View {
     var size: CGFloat
     var cornerRadius: CGFloat = 8
     var circle = false
+    /// Fill whatever frame it is given instead of `size`, which then only sets the pixels loaded.
+    var fillsFrame = false
 
     @Environment(\.displayScale) private var scale
     @State private var image: UIImage?
@@ -34,7 +36,8 @@ struct ArtworkView: View {
                     }
             }
         }
-        .frame(width: size, height: size)
+        .frame(width: fillsFrame ? nil : size, height: fillsFrame ? nil : size)
+        .frame(maxWidth: fillsFrame ? .infinity : nil, maxHeight: fillsFrame ? .infinity : nil)
         .clipShape(shape)
         .overlay(shape.strokeBorder(.primary.opacity(0.06), lineWidth: 0.5))
         .task(id: url) {

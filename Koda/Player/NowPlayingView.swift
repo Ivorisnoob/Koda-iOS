@@ -50,6 +50,9 @@ struct NowPlayingView: View {
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 8)
+            .overlay {
+                if player.current != nil { floatingArtwork }
+            }
         }
         .foregroundStyle(.white)
         .environment(\.colorScheme, .dark)
@@ -99,23 +102,36 @@ struct NowPlayingView: View {
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: app.sleepTimer.isActive)
     }
 
+    /// Where the big cover goes. The cover itself is `floatingArtwork`, drawn once over
+    /// the whole screen, so it moves and resizes between here and the compact header
+    /// rather than fading out of one and into the other.
     private var bigArtwork: some View {
         GeometryReader { geometry in
             let side = min(geometry.size.width, geometry.size.height)
-            ArtworkView(artwork: player.current?.artwork, size: side, cornerRadius: 18)
-                // While the song loads, light passes over the cover and it waits a little small,
-                // then settles to full size the moment sound starts.
-                .sheen(isLoadingSong)
-                .clipShape(.rect(cornerRadius: 18, style: .continuous))
+            Color.clear
+                .frame(width: side, height: side)
                 .matchedGeometryEffect(id: "artwork", in: artworkSpace)
-                .shadow(color: .black.opacity(isLoadingSong ? 0.2 : 0.35), radius: 30, y: 18)
-                // The cover breathes back when paused, like a record lifted off.
-                .scaleEffect(player.wantsToPlay ? (isLoadingSong ? 0.93 : 1) : 0.84)
-                .animation(.spring(response: 0.5, dampingFraction: 0.7), value: player.wantsToPlay)
-                .animation(.spring(response: 0.45, dampingFraction: 0.62), value: isLoadingSong)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    private var floatingArtwork: some View {
+        let big = panel == .artwork
+        let radius: CGFloat = big ? 18 : 8
+        return ArtworkView(artwork: player.current?.artwork, size: 380, cornerRadius: radius, fillsFrame: true)
+            // While the song loads, light passes over the cover and it waits a little small,
+            // then settles to full size the moment sound starts.
+            .sheen(big && isLoadingSong)
+            .clipShape(.rect(cornerRadius: radius, style: .continuous))
+            .shadow(color: .black.opacity(big ? (isLoadingSong ? 0.2 : 0.35) : 0.25), radius: big ? 30 : 8, y: big ? 18 : 4)
+            // The cover breathes back when paused, like a record lifted off.
+            .scaleEffect(big ? (player.wantsToPlay ? (isLoadingSong ? 0.93 : 1) : 0.84) : 1)
+            .animation(.spring(response: 0.5, dampingFraction: 0.7), value: player.wantsToPlay)
+            .animation(.spring(response: 0.45, dampingFraction: 0.62), value: isLoadingSong)
+            .matchedGeometryEffect(id: "artwork", in: artworkSpace, isSource: false)
+            .onTapGesture { if !big { setPanel(.artwork) } }
+            .accessibilityHidden(true)
     }
 
     private var titleRow: some View {
@@ -149,9 +165,9 @@ struct NowPlayingView: View {
     /// The cover, title and like button in one row, above lyrics or the queue.
     private var compactHeader: some View {
         HStack(spacing: 14) {
-            ArtworkView(artwork: player.current?.artwork, size: 64, cornerRadius: 8)
+            Color.clear
+                .frame(width: 64, height: 64)
                 .matchedGeometryEffect(id: "artwork", in: artworkSpace)
-                .onTapGesture { setPanel(.artwork) }
             VStack(alignment: .leading, spacing: 2) {
                 Text(player.current?.title ?? "").font(.headline).lineLimit(1)
                 artistButton.font(.subheadline)

@@ -20,6 +20,8 @@ struct SyncedLyrics: View {
 
     /// Lead the audio slightly so a line lights up as it is sung, not after.
     static let lead: TimeInterval = 0.15
+    /// How far past the panel's sides the lyrics may draw: Now Playing's own side margin.
+    static let bleed: CGFloat = 24
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.1)) { context in
@@ -48,6 +50,7 @@ struct SyncedLyrics: View {
                         }
                     }
                     .padding(.vertical, 140)
+                    .padding(.horizontal, SyncedLyrics.bleed)
                     .animation(.spring(response: 0.5, dampingFraction: 0.85), value: current)
                     .animation(.spring(response: 0.45, dampingFraction: 0.8), value: interlude?.after)
                 }
@@ -71,19 +74,24 @@ struct SyncedLyrics: View {
         .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.12),
                                      .init(color: .black, location: 0.85), .init(color: .clear, location: 1)],
                              startPoint: .top, endPoint: .bottom))
+        // The lyrics run out to the screen edges, padded back in line with the rest of the
+        // player, so a glowing or swelling word at either edge is not cut off by the scroll view.
+        .padding(.horizontal, -Self.bleed)
         .overlay(alignment: .bottomTrailing) {
             if userScrolled {
                 Button("Follow", systemImage: "arrow.down.to.line") { userScrolled = false }
                     .font(.footnote.weight(.semibold))
                     .buttonStyle(.glass)
-                    .padding(8)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, Self.bleed + 8)
                     .transition(.scale.combined(with: .opacity))
             }
         }
         .overlay(alignment: .bottomLeading) {
             if let id = player.current?.id {
                 LyricsTimingControl(songId: id)
-                    .padding(8)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, Self.bleed + 8)
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: userScrolled)
@@ -271,10 +279,12 @@ private struct KaraokeWord: View {
         Text(word.text)
             .font(font)
             .foregroundStyle(.white.opacity(0.38))
+            .fixedSize()
             .overlay {
                 Text(word.text)
                     .font(font)
                     .foregroundStyle(.white)
+                    .fixedSize()
                     .mask { FillMask(progress: fill) }
             }
             .shadow(color: .white.opacity(0.55 * sustain), radius: 12 * sustain)
@@ -327,7 +337,8 @@ struct WordFlow: Layout {
             default: x = bounds.minX
             }
             for item in row.items {
-                subviews[item.index].place(at: CGPoint(x: x, y: y + row.height - item.size.height), proposal: ProposedViewSize(item.size))
+                // Placed at its own size: proposing exactly the measured width can truncate a word to "…".
+                subviews[item.index].place(at: CGPoint(x: x, y: y + row.height - item.size.height), proposal: .unspecified)
                 x += item.size.width + item.gap
             }
             y += row.height + lineSpacing
