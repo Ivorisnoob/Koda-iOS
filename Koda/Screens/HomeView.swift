@@ -378,15 +378,32 @@ private struct MixHero: View {
 
     /// Up to three covers overlapping left to right, the first on top; empty slots while
     /// there are none, so the card keeps its height.
+    @ViewBuilder
     private var coverRow: some View {
-        let slots: [Artwork?] = covers.isEmpty ? [nil, nil, nil] : covers
-        return HStack(spacing: -coverSize * 0.3) {
-            ForEach(slots.indices, id: \.self) { index in
-                ArtworkView(artwork: slots[index], size: coverSize, cornerRadius: 12)
-                    .shadow(color: .black.opacity(0.3), radius: 10, y: 5)
-                    .zIndex(Double(-index))
+        let covers = covers
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        HStack(spacing: -coverSize * 0.3) {
+            if covers.isEmpty {
+                // One flat shape, each slot cut out of the one behind it, so the overlaps
+                // don't stack translucent grey and shadows into darker patches.
+                ForEach(0..<3, id: \.self) { index in
+                    shape.fill(.white)
+                        .frame(width: coverSize, height: coverSize)
+                        .background { shape.padding(-3).blendMode(.destinationOut) }
+                        .zIndex(Double(-index))
+                }
+            } else {
+                ForEach(covers.indices, id: \.self) { index in
+                    // Opaque under the image, so a cover still loading hides the one behind it.
+                    ArtworkView(artwork: covers[index], size: coverSize, cornerRadius: 12)
+                        .background(Color(white: 0.22), in: shape)
+                        .shadow(color: .black.opacity(0.3), radius: 10, y: 5)
+                        .zIndex(Double(-index))
+                }
             }
         }
+        .compositingGroup()
+        .opacity(covers.isEmpty ? 0.16 : 1)
         .accessibilityHidden(true)
     }
 }
