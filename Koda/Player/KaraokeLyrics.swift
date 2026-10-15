@@ -414,7 +414,7 @@ struct LyricsLoading: View {
             }
         }
         .padding(.top, 16)
-        .placeholderPulse()
+        .shimmer()
         .frame(maxHeight: .infinity, alignment: .top)
         .accessibilityLabel("Loading lyrics")
     }

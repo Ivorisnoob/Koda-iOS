@@ -24,7 +24,7 @@ struct Scrubber: View {
                             .frame(width: max(0, width * fraction))
                     }
                     // Light runs along the bar while the song loads or the network catches up.
-                    .sheen(player.isBuffering, period: 1.1)
+                    .shimmer(player.isBuffering)
                     .clipShape(.capsule)
                     .frame(height: dragFraction == nil ? 6 : 12)
                     .frame(maxHeight: .infinity)

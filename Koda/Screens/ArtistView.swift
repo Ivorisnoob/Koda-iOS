@@ -61,7 +61,7 @@ struct ArtistView: View {
                     if name.isEmpty {
                         // Opened from a link, the name comes with the page.
                         Capsule().fill(.white.opacity(0.25)).frame(width: 180, height: 34)
-                            .placeholderPulse()
+                            .shimmer()
                     } else {
                         Text(name)
                             .font(.system(size: 40, weight: .bold))
@@ -217,7 +217,7 @@ private struct ArtistHeroImage: View {
             }
         }
         .frame(width: width, height: height)
-        .placeholderPulse(image == nil && previewImage == nil)
+        .shimmer(image == nil && previewImage == nil)
         .clipped()
         .task(id: preview?.url) {
             guard let url = preview?.url(pixels: 120), image == nil else { return }

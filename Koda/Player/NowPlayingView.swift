@@ -121,15 +121,15 @@ struct NowPlayingView: View {
         let big = panel == .artwork
         let radius: CGFloat = big ? 18 : 8
         return ArtworkView(artwork: player.current?.artwork, size: 380, cornerRadius: radius, fillsFrame: true)
-            // While the song loads, light passes over the cover and it waits a little small,
-            // then settles to full size the moment sound starts.
-            .sheen(big && isLoadingSong)
+            // While the song loads the cover waits a little small, then settles to full size
+            // the moment sound starts. Nothing is drawn over the art itself.
             .clipShape(.rect(cornerRadius: radius, style: .continuous))
             .shadow(color: .black.opacity(big ? (isLoadingSong ? 0.2 : 0.35) : 0.25), radius: big ? 30 : 8, y: big ? 18 : 4)
             // The cover breathes back when paused, like a record lifted off.
             .scaleEffect(big ? (player.wantsToPlay ? (isLoadingSong ? 0.93 : 1) : 0.84) : 1)
             .animation(.spring(response: 0.5, dampingFraction: 0.7), value: player.wantsToPlay)
-            .animation(.spring(response: 0.45, dampingFraction: 0.62), value: isLoadingSong)
+            // No bounce: sound arriving is not a gesture with momentum behind it.
+            .animation(.smooth(duration: 0.45), value: isLoadingSong)
             .matchedGeometryEffect(id: "artwork", in: artworkSpace, isSource: false)
             .onTapGesture { if !big { setPanel(.artwork) } }
             .accessibilityHidden(true)

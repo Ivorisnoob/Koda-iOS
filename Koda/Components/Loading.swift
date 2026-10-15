@@ -108,11 +108,11 @@ struct SongListSkeleton: View {
 }
 
 extension View {
-    /// Content standing in while the real content loads: redacted to shapes, gently
-    /// pulsing, not interactive, and read to VoiceOver as loading.
+    /// Content standing in while the real content loads: redacted to shapes, shimmering,
+    /// not interactive, and read to VoiceOver as loading.
     func loadingPlaceholder() -> some View {
         redacted(reason: .placeholder)
-            .placeholderPulse()
+            .shimmer()
             .allowsHitTesting(false)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Loading")
