@@ -11,13 +11,12 @@ struct NowPlayingView: View {
     @Environment(Player.self) private var player
     @Environment(Library.self) private var library
     @Environment(\.dismiss) private var dismiss
-    @State private var palette = PaletteModel()
     @State private var panel: Panel = .artwork
     @Namespace private var artworkSpace
 
     var body: some View {
         ZStack {
-            MeshBackground(palette: palette.palette, isAnimating: player.wantsToPlay && app.settings.animatesPlayerBackground)
+            MeshBackground(palette: app.nowPlayingPalette.palette, isAnimating: player.wantsToPlay && app.settings.animatesPlayerBackground)
             VStack(spacing: 0) {
                 topBar
                 switch panel {
@@ -56,7 +55,6 @@ struct NowPlayingView: View {
         }
         .foregroundStyle(.white)
         .environment(\.colorScheme, .dark)
-        .task(id: player.current?.artwork) { await palette.load(player.current?.artwork) }
         .onChange(of: player.current == nil) { _, isEmpty in if isEmpty { dismiss() } }
         .playlistPicker(whenOnTop: true)
     }

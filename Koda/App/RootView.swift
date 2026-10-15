@@ -8,6 +8,11 @@ struct RootView: View {
     @State private var libraryPath: [Route] = []
     @State private var searchPath: [Route] = []
     @Namespace private var playerTransition
+    /// Now Playing's presentation, owned here rather than bound to the model: when the cover's
+    /// binding comes from an @Observable model, the zoom out of the tab bar accessory finds no
+    /// source view and falls back to a plain slide up (FB20772137, iOS 26.1 on). The model's
+    /// `isNowPlayingPresented` mirrors it, for opening and closing from elsewhere.
+    @State private var showsNowPlaying = false
 
     var body: some View {
         @Bindable var model = model
@@ -33,14 +38,18 @@ struct RootView: View {
         // blurs content progressively instead. It applies to every scroll view below here.
         .scrollEdgeEffectStyle(.soft, for: .all)
         .modifier(MiniPlayerAccessory(isEnabled: player.current != nil) {
-            MiniPlayer()
+            MiniPlayer { showsNowPlaying = true }
                 .matchedTransitionSource(id: "player", in: playerTransition)
         })
-        .fullScreenCover(isPresented: $model.isNowPlayingPresented) {
+        .fullScreenCover(isPresented: $showsNowPlaying) {
             NowPlayingView()
                 .navigationTransition(.zoom(sourceID: "player", in: playerTransition))
         }
-        .playlistPicker(whenOnTop: !model.isNowPlayingPresented)
+        .onChange(of: model.isNowPlayingPresented) { _, shown in showsNowPlaying = shown }
+        .onChange(of: showsNowPlaying) { _, shown in model.isNowPlayingPresented = shown }
+        // Now Playing opens already in the song's colours, rather than fading into them mid-zoom.
+        .task(id: player.current?.artwork) { await model.nowPlayingPalette.load(player.current?.artwork) }
+        .playlistPicker(whenOnTop: !showsNowPlaying)
         .onOpenURL { url in
             if !model.open(url) { model.linkError = "Koda can open YouTube Music songs, albums, playlists and artists." }
         }

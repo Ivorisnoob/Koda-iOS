@@ -15,6 +15,8 @@ final class AppModel {
     let settings = AppSettings()
 
     var isNowPlayingPresented = false
+    /// The playing song's colours, kept ready for Now Playing while it is closed.
+    let nowPlayingPalette = PaletteModel()
     /// Set to switch tabs from anywhere, e.g. "Go to artist" inside Now Playing.
     var selectedTab: AppTab = .home
     /// A page to open on the current tab's stack.
