@@ -152,17 +152,14 @@ struct NowPlayingView: View {
         }
     }
 
+    /// The byline: one artist opens at a tap, several offer a choice.
     private var artistButton: some View {
-        Button {
-            guard let artist = player.current?.artists.first(where: { $0.id != nil }), let id = artist.id else { return }
-            app.open(.artist(ArtistSummary(id: id, name: artist.name)))
-        } label: {
+        ArtistLinks(line: player.current?.artistLine ?? "", artists: player.current?.artists ?? [], open: { app.open(.artist($0)) }) {
             Text(player.current?.artistLine ?? "")
                 .font(.title3)
                 .foregroundStyle(.white.opacity(0.7))
                 .lineLimit(1)
         }
-        .buttonStyle(.plain)
     }
 
     /// The cover, title and like button in one row, above lyrics or the queue.

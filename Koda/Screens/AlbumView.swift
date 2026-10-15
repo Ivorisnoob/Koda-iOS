@@ -19,14 +19,15 @@ struct AlbumView: View {
                     artwork: album.artwork ?? summary.artwork,
                     title: album.title,
                     byline: album.artistLine,
-                    bylineRoute: album.artists.first(where: { $0.id != nil }).map { .artist(ArtistSummary(id: $0.id!, name: $0.name)) },
+                    bylineArtists: album.artists,
+                    openArtist: { app.open(.artist($0)) },
                     detail: [album.kind?.rawValue, album.year.map(String.init)].compactMap { $0 }.joined(separator: " · "),
                     description: state.value?.description,
                     accent: palette.palette.accent,
                     play: { play(shuffled: false) },
                     shuffle: { play(shuffled: true) })
 
-                AsyncContent(state: state, retry: load) { page in
+                AsyncContent(state: state, retry: load, placeholder: .placeholder(summary)) { page in
                     VStack(alignment: .leading, spacing: 24) {
                         LazyVStack(spacing: 0) {
                             ForEach(Array(page.songs.enumerated()), id: \.offset) { index, song in

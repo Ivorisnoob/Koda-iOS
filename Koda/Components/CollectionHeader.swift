@@ -6,7 +6,9 @@ struct CollectionHeader: View {
     let artwork: Artwork?
     let title: String
     var byline: String?
-    var bylineRoute: Route?
+    /// The artists behind the byline, to open from it.
+    var bylineArtists: [ArtistRef] = []
+    var openArtist: (ArtistSummary) -> Void = { _ in }
     var detail: String?
     var description: String?
     var accent: Color
@@ -27,13 +29,9 @@ struct CollectionHeader: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(3)
                 if let byline, !byline.isEmpty {
-                    if let bylineRoute {
-                        NavigationLink(value: bylineRoute) {
-                            Text(byline).font(.title3).foregroundStyle(accent).lineLimit(1)
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        Text(byline).font(.title3).foregroundStyle(.secondary).lineLimit(1)
+                    let opens = !ArtistRef.linked(bylineArtists).isEmpty
+                    ArtistLinks(line: byline, artists: bylineArtists, open: openArtist) {
+                        Text(byline).font(.title3).foregroundStyle(opens ? accent : .secondary).lineLimit(1)
                     }
                 }
                 if let detail, !detail.isEmpty {

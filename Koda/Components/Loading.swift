@@ -27,15 +27,24 @@ extension Error {
 }
 
 /// Loading, failed or loaded, with a retry that re-runs `load`.
+///
+/// Given a `placeholder`, loading draws the page's own layout from it, redacted: the
+/// loading screen then has the loaded page's geometry, and nothing shifts when the
+/// real content arrives.
 struct AsyncContent<Value, Content: View>: View {
     let state: LoadState<Value>
     var retry: () async -> Void
+    var placeholder: Value?
     @ViewBuilder var content: (Value) -> Content
 
     var body: some View {
         switch state {
         case .loading:
-            SongListSkeleton()
+            if let placeholder {
+                content(placeholder).loadingPlaceholder()
+            } else {
+                SongListSkeleton()
+            }
         case .failed(let message):
             ContentUnavailableView {
                 Label("Couldn't Load", systemImage: "wifi.exclamationmark")
@@ -83,29 +92,30 @@ struct PlayShuffleButtons: View {
     }
 }
 
-/// Rows of songs in placeholder shapes, pulsing while a page loads.
+/// Song rows drawn by the real row, redacted, for lists whose shape isn't known yet.
 struct SongListSkeleton: View {
-    var rows = 6
+    var rows = 8
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            ForEach(0..<rows, id: \.self) { index in
-                HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.quaternary).frame(width: 48, height: 48)
-                    VStack(alignment: .leading, spacing: 7) {
-                        // Varied widths, so the rows read as text rather than bars.
-                        RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(width: [180, 140, 200, 120, 165, 150][index % 6], height: 13)
-                        RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(width: [110, 90, 130, 80, 100, 120][index % 6], height: 11)
-                    }
-                }
+        LazyVStack(spacing: 0) {
+            ForEach(Song.placeholders(rows)) { song in
+                SongRow(song: song) {}
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .placeholderPulse()
-        .accessibilityElement()
-        .accessibilityLabel("Loading")
+        .loadingPlaceholder()
+    }
+}
+
+extension View {
+    /// Content standing in while the real content loads: redacted to shapes, gently
+    /// pulsing, not interactive, and read to VoiceOver as loading.
+    func loadingPlaceholder() -> some View {
+        redacted(reason: .placeholder)
+            .placeholderPulse()
+            .allowsHitTesting(false)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Loading")
     }
 }
 

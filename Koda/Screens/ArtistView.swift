@@ -13,17 +13,15 @@ struct ArtistView: View {
     @State private var aboutExpanded = false
 
     private let heroHeight: CGFloat = 400
+    /// One line of the audience text at the current text size.
+    @ScaledMetric(relativeTo: .subheadline) private var audienceLineHeight: CGFloat = 20
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 hero
-                if case .loading = state {
-                    ArtistSkeleton()
-                } else {
-                    AsyncContent(state: state, retry: load) { page in
-                        content(page)
-                    }
+                AsyncContent(state: state, retry: load, placeholder: .placeholder(summary)) { page in
+                    content(page)
                 }
             }
             .padding(.bottom, 32)
@@ -71,9 +69,19 @@ struct ArtistView: View {
                             .minimumScaleFactor(0.6)
                             .transition(.opacity)
                     }
-                    if let audience = state.value?.artist.subtitle {
-                        Text(audience).font(.subheadline.weight(.medium)).opacity(0.85)
+                    // A slot one line tall, always there, so the name sits in the same place
+                    // before the audience line arrives, after it, and for artists without one.
+                    ZStack(alignment: .leading) {
+                        if let audience = state.value?.artist.subtitle {
+                            Text(audience)
+                                .font(.subheadline.weight(.medium))
+                                .opacity(0.85)
+                                .lineLimit(1)
+                                .transition(.opacity)
+                        }
                     }
+                    .frame(height: audienceLineHeight, alignment: .leading)
+                    .animation(.easeOut(duration: 0.25), value: state.value?.artist.subtitle)
                 }
                 .foregroundStyle(.white)
                 .padding(20)
@@ -229,36 +237,5 @@ private struct ArtistHeroImage: View {
             withAnimation(.easeOut(duration: 0.25)) { image = loaded }
         }
         .accessibilityHidden(true)
-    }
-}
-
-/// Top songs and albums in shimmering placeholders while the artist's page loads.
-private struct ArtistSkeleton: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 12) {
-                ForEach(0..<2) { _ in
-                    Capsule().fill(.quaternary).frame(height: 50)
-                }
-            }
-            RoundedRectangle(cornerRadius: 6).fill(.quaternary).frame(width: 120, height: 20)
-            ForEach(0..<5) { _ in
-                HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.quaternary).frame(width: 48, height: 48)
-                    VStack(alignment: .leading, spacing: 6) {
-                        RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(width: 170, height: 13)
-                        RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(width: 110, height: 11)
-                    }
-                }
-            }
-            HStack(spacing: 14) {
-                ForEach(0..<3) { _ in
-                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.quaternary).frame(width: 140, height: 140)
-                }
-            }
-        }
-        .padding(.horizontal, 20)
-        .placeholderPulse()
-        .accessibilityLabel("Loading")
     }
 }

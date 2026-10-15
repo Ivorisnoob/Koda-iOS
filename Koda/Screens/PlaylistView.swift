@@ -26,9 +26,11 @@ struct PlaylistView: View {
                     play: { play(shuffled: false) },
                     shuffle: { play(shuffled: true) })
 
-                AsyncContent(state: state, retry: load) { _ in
+                AsyncContent(state: state, retry: load, placeholder: .placeholder(summary)) { page in
+                    // `songs` grows past the first page as the list scrolls; while loading it is empty.
+                    let rows = state.value == nil ? page.songs : songs
                     LazyVStack(spacing: 0) {
-                        ForEach(Array(songs.enumerated()), id: \.offset) { index, song in
+                        ForEach(Array(rows.enumerated()), id: \.offset) { index, song in
                             SongRow(song: song) { player.play(songs, startAt: index) }
                                 .onAppear { if index >= songs.count - 10 { Task { await loadMore() } } }
                         }

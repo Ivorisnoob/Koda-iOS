@@ -257,7 +257,8 @@ struct HomeView: View {
 private struct MixHero: View {
     let mix: HomeModel.Mix
     @Environment(Player.self) private var player
-    @State private var palette = PaletteModel()
+    /// One palette per fanned-out cover; the background weaves all three together.
+    @State private var palettes = [PaletteModel(), PaletteModel(), PaletteModel()]
     @State private var appeared = false
     @State private var taps = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -268,6 +269,19 @@ private struct MixHero: View {
     }
 
     private var title: String { mix.isPersonal ? "Your Mix" : "Start Here" }
+
+    /// A 3×3 mesh from the three covers: the first cover's colours to the top left, the
+    /// second's along the top right and right edge, the third's along the bottom and in
+    /// the middle, so the card reads as all of them rather than one. Fewer covers repeat.
+    private var meshColors: [Color] {
+        let count = max(min(covers.count, 3), 1)
+        let a = palettes[0].palette.mesh, b = palettes[1 % count].palette.mesh, c = palettes[2 % count].palette.mesh
+        return [
+            a[0], a[1], b[2],
+            a[3], c[4], b[5],
+            c[6], c[7], b[8],
+        ]
+    }
     private var caption: String {
         guard mix.isPersonal else { return "Trending songs to get Koda to know you" }
         switch mix.artists.count {
@@ -280,11 +294,7 @@ private struct MixHero: View {
     var body: some View {
         NavigationLink(value: Route.songList(title: title, subtitle: caption, songs: mix.songs)) {
             ZStack(alignment: .bottomLeading) {
-                MeshGradient(width: 3, height: 3, points: [
-                    [0, 0], [0.5, 0], [1, 0],
-                    [0, 0.5], [0.62, 0.42], [1, 0.5],
-                    [0, 1], [0.5, 1], [1, 1],
-                ], colors: palette.palette.mesh)
+                MixBackground(colors: meshColors, isAnimating: !reduceMotion)
                 LinearGradient(colors: [.clear, .black.opacity(0.45)], startPoint: .center, endPoint: .bottom)
 
                 collage
@@ -317,7 +327,7 @@ private struct MixHero: View {
             .frame(height: 340)
             .clipShape(.rect(cornerRadius: 32, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 32, style: .continuous).strokeBorder(.white.opacity(0.08), lineWidth: 0.5))
-            .shadow(color: palette.palette.mesh[4].opacity(0.35), radius: 24, y: 12)
+            .shadow(color: meshColors[4].opacity(0.35), radius: 24, y: 12)
             .contentShape(.rect(cornerRadius: 32, style: .continuous))
         }
         .buttonStyle(HeroButtonStyle())
@@ -338,7 +348,12 @@ private struct MixHero: View {
             .accessibilityLabel("Play \(title)")
             .sensoryFeedback(.impact(weight: .medium), trigger: taps)
         }
-        .task(id: covers.first) { await palette.load(covers.first) }
+        .task(id: covers) {
+            // The covers are already loaded for the collage, so these come from the cache.
+            for (index, cover) in covers.enumerated() where index < palettes.count {
+                await palettes[index].load(cover)
+            }
+        }
         .onAppear {
             guard !appeared else { return }
             withAnimation(reduceMotion ? nil : .spring(response: 0.7, dampingFraction: 0.72).delay(0.1)) { appeared = true }
@@ -371,6 +386,25 @@ private struct MixHero: View {
         }
         .opacity(appeared ? 1 : 0)
         .accessibilityHidden(true)
+    }
+}
+
+/// The mix card's colours, their inner points drifting slowly so the colours move.
+private struct MixBackground: View {
+    let colors: [Color]
+    let isAnimating: Bool
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 20, paused: !isAnimating)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            let a = Float(sin(t * 0.3)) * 0.1, b = Float(cos(t * 0.23)) * 0.1
+            MeshGradient(width: 3, height: 3, points: [
+                [0, 0], [0.5 + a * 0.6, 0], [1, 0],
+                [0, 0.5 + b * 0.6], [0.55 + a, 0.45 + b], [1, 0.5 - a * 0.6],
+                [0, 1], [0.5 - b * 0.6, 1], [1, 1],
+            ], colors: colors)
+        }
+        .animation(.easeInOut(duration: 0.8), value: colors)
     }
 }
 

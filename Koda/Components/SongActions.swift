@@ -23,9 +23,7 @@ struct SongMenuItems: View {
                     model.open(.album(AlbumSummary(id: album.id, title: album.title, artistLine: song.artistLine, artists: song.artists, artwork: song.artwork)))
                 }
             }
-            if let artist = song.artists.first(where: { $0.id != nil }), let id = artist.id {
-                Button("Go to Artist", systemImage: "music.mic") { model.open(.artist(ArtistSummary(id: id, name: artist.name))) }
-            }
+            GoToArtistItems(song: song) { model.open(.artist($0)) }
             ShareLink(item: URL(string: "https://music.youtube.com/watch?v=\(song.id)")!) {
                 Label("Share", systemImage: "square.and.arrow.up")
             }
