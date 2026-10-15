@@ -44,7 +44,7 @@ struct CollectionHeader: View {
                 }
             }
             .padding(.horizontal, 24)
-            PlayShuffleButtons(tint: accent, shuffleTitle: shuffleTitle, play: play, shuffle: shuffle)
+            PlayShuffleButtons(shuffleTitle: shuffleTitle, play: play, shuffle: shuffle)
                 .padding(.horizontal, 20)
                 .padding(.top, 4)
             if let description, !description.isEmpty {

@@ -54,9 +54,8 @@ struct AsyncContent<Value, Content: View>: View {
     }
 }
 
-/// Play and Shuffle side by side, tinted with the page's colour.
+/// Play and Shuffle side by side, in clear glass so the page's colours show through without tinting them.
 struct PlayShuffleButtons: View {
-    var tint: Color = .accentColor
     var shuffleTitle = "Shuffle"
     let play: () -> Void
     let shuffle: () -> Void
@@ -81,8 +80,7 @@ struct PlayShuffleButtons: View {
         }
         .font(.body.weight(.semibold))
         .controlSize(.large)
-        .buttonStyle(.glassProminent)
-        .tint(tint)
+        .buttonStyle(.glass)
         .sensoryFeedback(.impact(weight: .light), trigger: taps)
     }
 }

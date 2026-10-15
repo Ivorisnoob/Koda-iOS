@@ -72,7 +72,7 @@ struct ArtistView: View {
 
     @ViewBuilder
     private func content(_ page: ArtistPage) -> some View {
-        PlayShuffleButtons(tint: palette.palette.accent, shuffleTitle: "Radio",
+        PlayShuffleButtons(shuffleTitle: "Radio",
                            play: { if !page.topSongs.isEmpty { player.play(page.topSongs) } },
                            shuffle: { if let first = page.topSongs.first { player.startRadio(from: first) } })
             .padding(.horizontal, 20)
