@@ -54,8 +54,15 @@ public final class Player {
         public var rate: Double
     }
 
+    /// Pause when the current song ends instead of going on, with the next song loaded and ready; for the sleep timer.
+    public var stopsAtEndOfSong = false {
+        didSet { avPlayer.actionAtItemEnd = stopsAtEndOfSong ? .pause : .advance }
+    }
+
     /// Called when a song starts playing, for history.
     public var onSongStarted: ((Song) -> Void)?
+    /// Called every few seconds of actual sound with the seconds heard since the last call, for listening stats.
+    public var onListened: ((Song, TimeInterval) -> Void)?
     /// Loads artwork for the lock screen; set by the app, which owns image decoding.
     public var artworkLoader: (@MainActor (URL) async -> MPMediaItemArtwork?)?
 
@@ -84,6 +91,8 @@ public final class Player {
     private var observations: [NSKeyValueObservation] = []
     private var timeObserver: Any?
     private var nowPlayingArtworkFor: URL?
+    private var lastListenedTick: Date?
+    private var lastPersisted = Date.distantPast
 
     public init(music: YouTubeMusic, storageDirectory: URL? = nil) {
         self.music = music
@@ -472,7 +481,7 @@ public final class Player {
             Task { @MainActor in self?.timeControlChanged(status) }
         })
         timeObserver = avPlayer.addPeriodicTimeObserver(forInterval: CMTime(seconds: 5, preferredTimescale: 600), queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.sampleTime() }
+            MainActor.assumeIsolated { self?.periodicTick() }
         }
         let center = NotificationCenter.default
         center.addObserver(forName: AVPlayerItem.failedToPlayToEndTimeNotification, object: nil, queue: .main) { [weak self] note in
@@ -535,12 +544,39 @@ public final class Player {
         prepareNext()
     }
 
+    /// Every five seconds while playing, and when playback starts or stops.
+    private func periodicTick() {
+        sampleTime()
+        let now = Date()
+        let playing = avPlayer.timeControlStatus == .playing
+        if playing, let last = lastListenedTick, let song = current {
+            // A gap longer than the tick means the app was suspended; that time was not heard.
+            onListened?(song, min(now.timeIntervalSince(last), 6))
+        }
+        lastListenedTick = playing ? now : nil
+        // iOS can end the app in the background without warning; keep the saved position recent.
+        if playing, now.timeIntervalSince(lastPersisted) > 20 { persistQueue() }
+    }
+
     /// A song ended with nothing preloaded behind it, so AVQueuePlayer stopped.
     /// When something was preloaded, AVQueuePlayer moves on by itself and
     /// `currentItemChanged` advances the queue; doing it here too would skip a song.
     private func itemEnded(_ item: ObjectIdentifier?) {
         trace("itemEnded known=\(item.flatMap { occurrences[$0] } != nil) items=\(avPlayer.items().count)")
         guard let item, let id = occurrences[item], id == queue.current?.id else { return }
+        if stopsAtEndOfSong {
+            // actionAtItemEnd was .pause, so AVQueuePlayer stayed on this song; move the queue on, paused.
+            stopsAtEndOfSong = false
+            wantsToPlay = false
+            occurrences[item] = nil
+            if queue.advance(automatic: true) != nil {
+                loadCurrent(at: 0)
+            } else {
+                seek(to: 0)
+                pause()
+            }
+            return
+        }
         if avPlayer.items().contains(where: { ObjectIdentifier($0) != item && occurrences[ObjectIdentifier($0)] != nil }) { return }
         occurrences[item] = nil
         if queue.advance(automatic: true) != nil {
@@ -766,6 +802,7 @@ public final class Player {
 
     /// Save the queue so the app reopens where it was.
     public func persistQueue() {
+        lastPersisted = Date()
         guard let queueFile else { return }
         let saved = Saved(queue: queue, position: position())
         if let data = try? JSONEncoder().encode(saved) { try? data.write(to: queueFile, options: .atomic) }

@@ -55,7 +55,11 @@ struct NowPlayingView: View {
         .environment(\.colorScheme, .dark)
         .task(id: player.current?.artwork) { await palette.load(player.current?.artwork) }
         .onChange(of: player.current == nil) { _, isEmpty in if isEmpty { dismiss() } }
+        .playlistPicker(whenOnTop: true)
     }
+
+    /// The song was asked for and no sound has come yet.
+    private var isLoadingSong: Bool { player.isBuffering && player.phase == .loading }
 
     private var topBar: some View {
         HStack {
@@ -68,11 +72,17 @@ struct NowPlayingView: View {
             .buttonBorderShape(.circle)
             .accessibilityLabel("Close")
             Spacer()
-            Capsule().fill(.white.opacity(0.4)).frame(width: 36, height: 5)
+            if app.sleepTimer.isActive {
+                SleepTimerPill()
+                    .transition(.scale(scale: 0.8).combined(with: .opacity))
+            } else {
+                Capsule().fill(.white.opacity(0.4)).frame(width: 36, height: 5)
+            }
             Spacer()
             if let song = player.current {
                 Menu {
                     SongMenuItems(song: song)
+                    Section { SleepTimerMenu() }
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.body.weight(.semibold))
@@ -86,17 +96,23 @@ struct NowPlayingView: View {
             }
         }
         .padding(.top, 8)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: app.sleepTimer.isActive)
     }
 
     private var bigArtwork: some View {
         GeometryReader { geometry in
             let side = min(geometry.size.width, geometry.size.height)
             ArtworkView(artwork: player.current?.artwork, size: side, cornerRadius: 18)
+                // While the song loads, light passes over the cover and it waits a little small,
+                // then settles to full size the moment sound starts.
+                .sheen(isLoadingSong)
+                .clipShape(.rect(cornerRadius: 18, style: .continuous))
                 .matchedGeometryEffect(id: "artwork", in: artworkSpace)
-                .shadow(color: .black.opacity(0.35), radius: 30, y: 18)
+                .shadow(color: .black.opacity(isLoadingSong ? 0.2 : 0.35), radius: 30, y: 18)
                 // The cover breathes back when paused, like a record lifted off.
-                .scaleEffect(player.wantsToPlay ? 1 : 0.84)
+                .scaleEffect(player.wantsToPlay ? (isLoadingSong ? 0.93 : 1) : 0.84)
                 .animation(.spring(response: 0.5, dampingFraction: 0.7), value: player.wantsToPlay)
+                .animation(.spring(response: 0.45, dampingFraction: 0.62), value: isLoadingSong)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .aspectRatio(1, contentMode: .fit)
@@ -151,25 +167,27 @@ struct NowPlayingView: View {
     private var bottomBar: some View {
         GlassEffectContainer(spacing: 20) {
             HStack(spacing: 0) {
-                panelButton(.lyrics, systemImage: "quote.bubble", label: "Lyrics")
+                panelButton(.lyrics, systemImage: "quote.bubble", activeImage: "quote.bubble.fill", label: "Lyrics")
                 Spacer()
                 AirPlayButton()
                     .frame(width: 52, height: 44)
                     .glassEffect(.regular.interactive(), in: .capsule)
                 Spacer()
-                panelButton(.queue, systemImage: "list.bullet", label: "Queue")
+                panelButton(.queue, systemImage: "list.bullet", activeImage: "list.bullet", label: "Queue")
             }
         }
     }
 
-    private func panelButton(_ target: Panel, systemImage: String, label: String) -> some View {
+    /// `activeImage` is spelled out because not every symbol has a filled form; `list.bullet.fill` draws nothing.
+    private func panelButton(_ target: Panel, systemImage: String, activeImage: String, label: String) -> some View {
         let active = panel == target
         return Button {
             setPanel(active ? .artwork : target)
         } label: {
-            Image(systemName: active ? systemImage + ".fill" : systemImage)
+            Image(systemName: active ? activeImage : systemImage)
                 .font(.body.weight(.semibold))
                 .frame(width: 52, height: 44)
+                .contentShape(.capsule)
         }
         .buttonStyle(.plain)
         .glassEffect(active ? .regular.tint(.white.opacity(0.35)).interactive() : .regular.interactive(), in: .capsule)
@@ -281,5 +299,26 @@ private struct FailureBanner: View {
         }
         .padding(12)
         .glassEffect(.regular, in: .rect(cornerRadius: 16))
+    }
+}
+
+/// Time left on the sleep timer, at the top of Now Playing; a tap changes or ends it.
+private struct SleepTimerPill: View {
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        Menu {
+            SleepTimerMenu()
+        } label: {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Label(app.sleepTimer.label(at: context.date), systemImage: "moon.fill")
+                    .font(.footnote.weight(.semibold).monospacedDigit())
+                    .padding(.horizontal, 12)
+                    .frame(height: 30)
+            }
+            .glassEffect(.regular.interactive(), in: .capsule)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Sleep timer")
     }
 }

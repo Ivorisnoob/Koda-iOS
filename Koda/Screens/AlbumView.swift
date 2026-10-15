@@ -75,6 +75,7 @@ struct AlbumView: View {
                     if let songs = state.value?.songs, !songs.isEmpty {
                         Button("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward") { player.playNext(songs) }
                         Button("Add to Queue", systemImage: "text.line.last.and.arrowtriangle.forward") { player.addToQueue(songs) }
+                        Button("Add to Playlist…", systemImage: "text.badge.plus") { app.addToPlaylist(songs) }
                     }
                     ShareLink(item: URL(string: "https://music.youtube.com/browse/\(summary.id)")!) {
                         Label("Share", systemImage: "square.and.arrow.up")

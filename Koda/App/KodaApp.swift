@@ -15,7 +15,7 @@ struct KodaApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             // The queue and position survive the app being closed from the switcher.
-            if phase != .active { model.player.persistQueue() }
+            if phase != .active { model.saveState() }
         }
     }
 }

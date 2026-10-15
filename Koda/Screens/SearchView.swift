@@ -75,7 +75,7 @@ struct SearchView: View {
             }
         }
         .navigationTitle("Search")
-        .searchable(text: $model.query, prompt: "Songs, artists, albums")
+        .searchable(text: $model.query, prompt: "Songs, artists, albums or a link")
         .onSubmit(of: .search) { submit(model.query) }
         .onChange(of: model.query) { _, text in
             if text.isEmpty { model.clear() }
@@ -85,15 +85,30 @@ struct SearchView: View {
     }
 
     private func submit(_ text: String) {
+        // A pasted YouTube link opens what it points at instead of searching for the URL.
+        if let link = YouTubeLink(text: text) {
+            model.query = ""
+            app.openLink(link)
+            return
+        }
         library.recordSearch(text)
         Task { await model.search(text, music: app.music) }
     }
 
     private var suggestionsList: some View {
-        List(model.suggestions, id: \.self) { suggestion in
-            Button { submit(suggestion) } label: {
-                Label(suggestion, systemImage: "magnifyingglass")
-                    .foregroundStyle(.primary)
+        List {
+            if let link = YouTubeLink(text: model.query) {
+                Button { submit(model.query) } label: {
+                    Label(link.openTitle, systemImage: "link")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            ForEach(model.suggestions, id: \.self) { suggestion in
+                Button { submit(suggestion) } label: {
+                    Label(suggestion, systemImage: "magnifyingglass")
+                        .foregroundStyle(.primary)
+                }
             }
         }
         .listStyle(.plain)
@@ -385,6 +400,18 @@ private struct TopResultCard: View {
         case .album(let a): a.cardSubtitle
         case .playlist(let p): ["Playlist", p.subtitle].compactMap { $0 }.joined(separator: " · ")
         case .song(let s): ["Song", s.artistLine].joined(separator: " · ")
+        }
+    }
+}
+
+extension YouTubeLink {
+    /// The row offered when a link is pasted into search.
+    var openTitle: String {
+        switch self {
+        case .song: "Play Song from Link"
+        case .album: "Open Album from Link"
+        case .playlist: "Open Playlist from Link"
+        case .artist: "Open Artist from Link"
         }
     }
 }

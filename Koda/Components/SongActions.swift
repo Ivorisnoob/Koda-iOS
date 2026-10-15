@@ -17,6 +17,7 @@ struct SongMenuItems: View {
         Section {
             let liked = library.isLiked(song)
             Button(liked ? "Remove from Liked" : "Like", systemImage: liked ? "heart.slash" : "heart") { library.toggleLike(song) }
+            Button("Add to Playlist…", systemImage: "text.badge.plus") { model.addToPlaylist([song]) }
             if let album = song.album {
                 Button("Go to Album", systemImage: "square.stack") {
                     model.open(.album(AlbumSummary(id: album.id, title: album.title, artistLine: song.artistLine, artists: song.artists, artwork: song.artwork)))

@@ -56,7 +56,8 @@ struct MiniPlayer: View {
     }
 }
 
-/// Play/pause with a spinner while the song is loading.
+/// Play/pause; while the song loads a ring circles it and the glyph dims, so the
+/// button still says what a tap will do.
 struct PlayPauseButton: View {
     var size: CGFloat
     @Environment(Player.self) private var player
@@ -68,20 +69,24 @@ struct PlayPauseButton: View {
             player.togglePlayPause()
         } label: {
             ZStack {
-                if player.isBuffering && player.phase == .loading {
-                    ProgressView().controlSize(size > 30 ? .large : .regular)
-                } else {
-                    Image(systemName: player.wantsToPlay ? "pause.fill" : "play.fill")
-                        .font(.system(size: size))
-                        .contentTransition(.symbolEffect(.replace.downUp))
+                Image(systemName: player.wantsToPlay ? "pause.fill" : "play.fill")
+                    .font(.system(size: player.isBuffering ? size * 0.72 : size))
+                    .opacity(player.isBuffering ? 0.75 : 1)
+                    .contentTransition(.symbolEffect(.replace.downUp))
+                if player.isBuffering {
+                    BufferingRing(lineWidth: size > 30 ? 3 : 2)
+                        .padding(size > 30 ? 4 : 3)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
             }
             .frame(width: size * 1.8, height: size * 1.8)
+            .animation(.spring(response: 0.35, dampingFraction: 0.75), value: player.isBuffering)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .disabled(player.current == nil)
         .sensoryFeedback(.impact(weight: .medium), trigger: taps)
         .accessibilityLabel(player.wantsToPlay ? "Pause" : "Play")
+        .accessibilityValue(player.isBuffering ? "Loading" : "")
     }
 }

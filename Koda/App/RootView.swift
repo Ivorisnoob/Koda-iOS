@@ -37,6 +37,15 @@ struct RootView: View {
             NowPlayingView()
                 .navigationTransition(.zoom(sourceID: "player", in: playerTransition))
         }
+        .playlistPicker(whenOnTop: !model.isNowPlayingPresented)
+        .onOpenURL { url in
+            if !model.open(url) { model.linkError = "Koda can open YouTube Music songs, albums, playlists and artists." }
+        }
+        .alert("Couldn't Open Link", isPresented: Binding(get: { model.linkError != nil }, set: { if !$0 { model.linkError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.linkError ?? "")
+        }
         .onChange(of: model.pendingRoute) { _, route in
             guard let route else { return }
             model.pendingRoute = nil

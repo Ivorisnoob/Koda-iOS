@@ -51,3 +51,59 @@ import Testing
         #expect(!library.isSaved(playlist: "PL1"))
     }
 }
+
+@MainActor
+@Suite struct LibraryPlaylistAndStatsTests {
+    @Test func playlistsKeepOneOfEachSongAndReorder() {
+        let library = Library(directory: nil)
+        let a = Song(id: "a", title: "A", artistLine: ""), b = Song(id: "b", title: "B", artistLine: ""), c = Song(id: "c", title: "C", artistLine: "")
+        let playlist = library.createPlaylist(named: "  Road trip ", songs: [a, a])
+        #expect(library.userPlaylist(playlist.id)?.name == "Road trip")
+        #expect(library.add([a, b, c], toPlaylist: playlist.id) == 2)
+        library.moveSongs(fromOffsets: [2], toOffset: 0, inPlaylist: playlist.id)
+        #expect(library.userPlaylist(playlist.id)?.songs.map(\.id) == ["c", "a", "b"])
+        library.removeSongs(atOffsets: [1], fromPlaylist: playlist.id)
+        #expect(library.userPlaylist(playlist.id)?.songs.map(\.id) == ["c", "b"])
+        library.renamePlaylist(playlist.id, to: "   ")
+        #expect(library.userPlaylist(playlist.id)?.name == "Road trip")
+        library.deletePlaylist(playlist.id)
+        #expect(library.userPlaylists.isEmpty)
+    }
+
+    @Test func countsPlaysAndListeningAndStreaks() {
+        let library = Library(directory: nil)
+        // Listening is filed under the phone's own days, so the test reads them the same way.
+        let calendar = Calendar.current
+        let song = Song(id: "a", title: "A", artistLine: "")
+        let today = Date(timeIntervalSince1970: 1_760_000_000)
+        library.recordPlay(song, at: today)
+        library.recordPlay(song, at: today)
+        library.addListening(30, to: song, at: today)
+        library.addListening(30, to: song, at: today.addingTimeInterval(-86_400))
+        library.addListening(30, to: song, at: today.addingTimeInterval(-3 * 86_400))
+        #expect(library.plays(of: song) == 2)
+        #expect(library.songStats["a"]?.seconds == 90)
+        #expect(library.streak(asOf: today, calendar: calendar) == 2)
+        // Nothing yet today still counts the run up to yesterday.
+        #expect(library.streak(asOf: today.addingTimeInterval(86_400), calendar: calendar) == 2)
+    }
+
+    @Test func readsALibraryFileFromBeforePlaylists() throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "koda-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let old = #"{"liked":[{"id":"a","title":"A","artistLine":"X","artists":[],"isVideo":false}],"albums":[],"playlists":[],"artists":[],"recent":[],"searches":["q"]}"#
+        try Data(old.utf8).write(to: dir.appending(path: "library.json"))
+        let library = Library(directory: dir)
+        #expect(library.liked.map(\.id) == ["a"])
+        #expect(library.searches == ["q"])
+        #expect(library.userPlaylists.isEmpty)
+    }
+
+    @Test func lyricsOffsetsRoundAndClear() {
+        let library = Library(directory: nil)
+        library.setLyricsOffset(0.54, for: "a")
+        #expect(library.lyricsOffset(for: "a") == 0.5)
+        library.setLyricsOffset(0.01, for: "a")
+        #expect(library.lyricsOffsets["a"] == nil)
+    }
+}

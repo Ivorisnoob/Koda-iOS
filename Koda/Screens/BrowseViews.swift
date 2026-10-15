@@ -57,8 +57,23 @@ struct SavedSongsView: View {
     let source: Route.SongSource
     @Environment(Player.self) private var player
     @Environment(Library.self) private var library
+    @AppStorage("koda.likedSort") private var sort: SongSort = .recent
 
-    private var songs: [Song] { source == .liked ? library.liked : library.recent }
+    private var songs: [Song] {
+        guard source == .liked else { return library.recent }
+        let liked = library.liked
+        switch sort {
+        case .recent: return liked
+        case .title: return liked.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        case .artist: return liked.sorted { $0.artistLine.localizedStandardCompare($1.artistLine) == .orderedAscending }
+        case .mostPlayed:
+            // Stable for ties: songs played as often keep the order they were liked in.
+            return liked.enumerated().sorted { a, b in
+                let pa = library.plays(of: a.element), pb = library.plays(of: b.element)
+                return pa != pb ? pa > pb : a.offset < b.offset
+            }.map(\.element)
+        }
+    }
 
     var body: some View {
         List {
@@ -98,7 +113,41 @@ struct SavedSongsView: View {
             if source == .recent, !songs.isEmpty {
                 Button("Clear", role: .destructive) { library.clearHistory() }
             }
+            if source == .liked, songs.count > 1 {
+                Menu("Sort", systemImage: "arrow.up.arrow.down") {
+                    Picker("Sort By", selection: $sort) {
+                        ForEach(SongSort.allCases) { option in
+                            Label(option.title, systemImage: option.systemImage).tag(option)
+                        }
+                    }
+                }
+            }
         }
         .navigationTitle(title)
+    }
+}
+
+/// How liked songs are ordered.
+enum SongSort: String, CaseIterable, Identifiable {
+    case recent, title, artist, mostPlayed
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .recent: "Recently Liked"
+        case .title: "Title"
+        case .artist: "Artist"
+        case .mostPlayed: "Most Played"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .recent: "clock"
+        case .title: "textformat"
+        case .artist: "music.mic"
+        case .mostPlayed: "flame"
+        }
     }
 }
