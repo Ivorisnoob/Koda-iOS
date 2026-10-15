@@ -322,14 +322,15 @@ struct MacSidebarLabel: View {
     var dimmed = false
     @State private var hovering = false
 
-    static let insets = EdgeInsets(top: 0, leading: 10, bottom: 0, trailing: 10)
+    /// None of its own: the sidebar list already keeps rows off its edges, as the Mac's do.
+    static let insets = EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 7) {
             Image(systemName: systemImage)
                 .font(.system(size: 14, weight: .regular))
                 .foregroundStyle(dimmed ? Color.secondary : Color.accentColor)
-                .frame(width: 20)
+                .frame(width: 18)
             Text(title)
                 .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
                 .foregroundStyle(dimmed ? Color.secondary : Color.primary)
@@ -341,7 +342,7 @@ struct MacSidebarLabel: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 6)
         .frame(height: 28)
         .background {
             RoundedRectangle(cornerRadius: 7, style: .continuous)

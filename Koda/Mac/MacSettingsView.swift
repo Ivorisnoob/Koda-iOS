@@ -67,7 +67,7 @@ struct MacSettingsView: View {
                         MacSettingsSidebarRow(pane: item, isSelected: pane == item)
                     }
                     .buttonStyle(.plain)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 10, bottom: 0, trailing: 10))
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                     .listRowBackground(Color.clear)
                 }
             }
@@ -139,7 +139,7 @@ private struct MacSettingsSidebarRow: View {
                 .lineLimit(1)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 7)
+        .padding(.horizontal, 5)
         .frame(height: 30)
         .background {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
