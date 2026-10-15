@@ -69,43 +69,105 @@ struct Scrubber: View {
     }
 }
 
-/// The system volume slider; the only way an app moves the phone's media volume.
+/// The phone's media volume as a bar drawn like the progress bar, speaker symbols either
+/// side and centred on it. It follows the hardware buttons, and while it is on screen
+/// the system's volume overlay stays away, as in Music.
 struct VolumeSlider: View {
+    @State private var volume = SystemVolume()
+    @State private var dragging = false
+
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "speaker.fill").font(.caption)
-            SystemVolumeView()
-            Image(systemName: "speaker.wave.3.fill").font(.caption)
+        HStack(spacing: 12) {
+            Image(systemName: "speaker.fill")
+                .font(.caption)
+                .accessibilityHidden(true)
+            GeometryReader { geometry in
+                let width = geometry.size.width
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.25))
+                    Capsule().fill(.white.opacity(dragging ? 1 : 0.85))
+                        .frame(width: max(0, width * CGFloat(volume.level)))
+                }
+                .frame(height: dragging ? 12 : 6)
+                .frame(maxHeight: .infinity)
+                .contentShape(.rect)
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            dragging = true
+                            volume.set(Float(min(1, max(0, value.location.x / width))))
+                        }
+                        .onEnded { _ in dragging = false })
+            }
+            .frame(height: 24)
+            .animation(.spring(response: 0.3, dampingFraction: 0.75), value: dragging)
+            Image(systemName: "speaker.wave.3.fill")
+                .font(.caption)
+                .accessibilityHidden(true)
         }
         .foregroundStyle(.white.opacity(0.6))
+        .background { HiddenSystemVolumeView(volume: volume).frame(width: 1, height: 1) }
+        .accessibilityElement()
+        .accessibilityLabel("Volume")
+        .accessibilityValue(Text(Double(volume.level), format: .percent.precision(.fractionLength(0))))
+        .accessibilityAdjustableAction { direction in
+            volume.set(min(1, max(0, volume.level + (direction == .increment ? 0.0625 : -0.0625))))
+        }
     }
 }
 
-private struct SystemVolumeView: UIViewRepresentable {
-    func makeUIView(context: Context) -> CenteredVolumeView {
-        CenteredVolumeView()
+/// The phone's media volume: read from the audio session, set through the slider inside
+/// an MPVolumeView, which is the one way an app can change it.
+@MainActor
+@Observable
+final class SystemVolume {
+    private(set) var level: Float
+    @ObservationIgnored private var observation: NSKeyValueObservation?
+    @ObservationIgnored weak var slider: UISlider?
+
+    init() {
+        level = AVAudioSession.sharedInstance().outputVolume
+        observation = Self.observe { [weak self] value in
+            Task { @MainActor in self?.level = value }
+        }
     }
 
-    func updateUIView(_ view: CenteredVolumeView, context: Context) {}
+    func set(_ value: Float) {
+        level = value
+        guard let slider else { return }
+        slider.value = value
+        slider.sendActions(for: .valueChanged)
+    }
+
+    /// The observer runs on whatever thread the audio session reports from, so it is built
+    /// outside the main actor.
+    nonisolated private static func observe(_ change: @escaping @Sendable (Float) -> Void) -> NSKeyValueObservation {
+        AVAudioSession.sharedInstance().observe(\.outputVolume, options: [.new]) { session, _ in
+            change(session.outputVolume)
+        }
+    }
 }
 
-/// MPVolumeView draws its slider at the top of its bounds; this keeps it centred
-/// vertically, so it lines up with the speaker symbols on either side.
-final class CenteredVolumeView: UIView {
-    private let volume = MPVolumeView(frame: .zero)
+/// An MPVolumeView kept on screen but invisible: its slider sets the volume, and its
+/// presence keeps the system's volume overlay from covering the player.
+private struct HiddenSystemVolumeView: UIViewRepresentable {
+    let volume: SystemVolume
 
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        volume.tintColor = .white
-        addSubview(volume)
+    func makeUIView(context: Context) -> MPVolumeView {
+        let view = MPVolumeView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+        // Not isHidden: a hidden volume view no longer keeps the overlay away.
+        view.alpha = 0.01
+        view.isUserInteractionEnabled = false
+        return view
     }
 
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        let height = min(volume.sizeThatFits(CGSize(width: bounds.width, height: .greatestFiniteMagnitude)).height, bounds.height)
-        volume.frame = CGRect(x: 0, y: ((bounds.height - height) / 2).rounded(), width: bounds.width, height: height)
+    func updateUIView(_ view: MPVolumeView, context: Context) {
+        if volume.slider == nil {
+            // The slider exists once the view has laid out.
+            Task { @MainActor in
+                volume.slider = view.subviews.compactMap { $0 as? UISlider }.first
+            }
+        }
     }
 }
 
