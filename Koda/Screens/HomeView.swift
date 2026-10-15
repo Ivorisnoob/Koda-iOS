@@ -271,16 +271,21 @@ struct HomeView: View {
 
 // MARK: - Your Mix
 
-/// The first thing on Home: the listener's mix as a large card in its covers' colours,
-/// with the covers fanned out and a play button that starts it.
+/// The first thing on Home: the listener's mix as a card in its covers' colours, three
+/// of its covers along the top and a button that plays it.
 private struct MixHero: View {
     let mix: HomeModel.Mix
     @Environment(Player.self) private var player
-    /// One palette per fanned-out cover; the background weaves all three together.
+    /// One palette per cover; the background weaves all three together.
     @State private var palettes = [PaletteModel(), PaletteModel(), PaletteModel()]
-    @State private var appeared = false
     @State private var taps = 0
+    @State private var isPressed = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .largeTitle) private var coverSize: CGFloat = 100
+
+    private static let cornerRadius: CGFloat = 26
+    private static let padding: CGFloat = 20
+    private static let playSize: CGFloat = 52
 
     private var covers: [Artwork] {
         var seen = Set<URL>()
@@ -311,99 +316,77 @@ private struct MixHero: View {
     }
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
         NavigationLink(value: Route.songList(title: title, subtitle: caption, songs: mix.songs)) {
-            ZStack(alignment: .bottomLeading) {
-                MixBackground(colors: meshColors, isAnimating: !reduceMotion)
-                LinearGradient(colors: [.clear, .black.opacity(0.45)], startPoint: .center, endPoint: .bottom)
-
-                collage
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    .padding(.top, 22)
-                    .padding(.trailing, 18)
-
-                HStack(alignment: .bottom, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(mix.isPersonal ? "MADE FOR YOU" : "NEW HERE")
-                            .font(.caption.weight(.bold))
-                            .tracking(1.2)
-                            .foregroundStyle(.white.opacity(0.7))
-                        Text(title)
-                            .font(.system(size: 42, weight: .heavy))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                        Text(caption)
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.white.opacity(0.8))
-                            .lineLimit(2)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 0) {
+                coverRow
+                    .padding(.bottom, 24)
+                Text(mix.isPersonal ? "Made for you" : "New here")
+                    .font(.caption.weight(.semibold))
+                    .textCase(.uppercase)
+                    .foregroundStyle(.white.opacity(0.7))
+                Text(title)
+                    .font(.largeTitle.bold())
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                HStack(spacing: 16) {
+                    Text(caption)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.75))
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     // Room for the play button, which sits over the card rather than inside the link.
-                    Color.clear.frame(width: 64, height: 64)
+                    Color.clear.frame(width: Self.playSize, height: Self.playSize)
                 }
-                .padding(22)
             }
-            .frame(height: 340)
-            .clipShape(.rect(cornerRadius: 32, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 32, style: .continuous).strokeBorder(.white.opacity(0.08), lineWidth: 0.5))
-            .shadow(color: meshColors[4].opacity(0.35), radius: 24, y: 12)
-            .contentShape(.rect(cornerRadius: 32, style: .continuous))
+            .padding(Self.padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background { MixBackground(colors: meshColors, isAnimating: !reduceMotion) }
+            .clipShape(shape)
+            .overlay(shape.strokeBorder(.white.opacity(0.08), lineWidth: 0.5))
+            .contentShape(shape)
         }
-        .buttonStyle(HeroButtonStyle())
+        .buttonStyle(PressReporting(isPressed: $isPressed))
         .overlay(alignment: .bottomTrailing) {
             Button {
                 taps += 1
                 player.play(mix.songs)
             } label: {
                 Image(systemName: "play.fill")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(.black)
-                    .frame(width: 64, height: 64)
-                    .background(.white, in: .circle)
-                    .shadow(color: .black.opacity(0.3), radius: 12, y: 6)
+                    .font(.title3.weight(.semibold))
+                    .frame(width: Self.playSize, height: Self.playSize)
             }
-            .buttonStyle(HeroButtonStyle())
-            .padding(22)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .padding(Self.padding)
             .accessibilityLabel("Play \(title)")
             .sensoryFeedback(.impact(weight: .medium), trigger: taps)
         }
+        // The card and its play button press down together, as one object.
+        .scaleEffect(isPressed ? 0.97 : 1)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: isPressed)
+        .environment(\.colorScheme, .dark)
         .task(id: covers) {
-            // The covers are already loaded for the collage, so these come from the cache.
+            // The covers are already loaded for the row, so these come from the cache.
             for (index, cover) in covers.enumerated() where index < palettes.count {
                 await palettes[index].load(cover)
             }
         }
-        .onAppear {
-            guard !appeared else { return }
-            withAnimation(reduceMotion ? nil : .spring(response: 0.7, dampingFraction: 0.72).delay(0.1)) { appeared = true }
-        }
         .accessibilityElement(children: .contain)
     }
 
-    /// Three covers fanned out: one large and tilted, two small circles tucked against it.
-    private var collage: some View {
-        let covers = covers
-        return ZStack(alignment: .topTrailing) {
-            if covers.count > 0 {
-                ArtworkView(artwork: covers[0], size: 150, cornerRadius: 22)
-                    .shadow(color: .black.opacity(0.35), radius: 16, y: 8)
-                    .rotationEffect(.degrees(appeared ? 7 : 0))
-                    .offset(x: appeared ? -6 : 0, y: appeared ? 4 : 10)
-            }
-            if covers.count > 1 {
-                ArtworkView(artwork: covers[1], size: 78, circle: true)
-                    .overlay(Circle().strokeBorder(.white.opacity(0.5), lineWidth: 2))
+    /// Up to three covers overlapping left to right, the first on top; empty slots while
+    /// there are none, so the card keeps its height.
+    private var coverRow: some View {
+        let slots: [Artwork?] = covers.isEmpty ? [nil, nil, nil] : covers
+        return HStack(spacing: -coverSize * 0.3) {
+            ForEach(slots.indices, id: \.self) { index in
+                ArtworkView(artwork: slots[index], size: coverSize, cornerRadius: 12)
                     .shadow(color: .black.opacity(0.3), radius: 10, y: 5)
-                    .offset(x: appeared ? -132 : -90, y: appeared ? 92 : 70)
-            }
-            if covers.count > 2 {
-                ArtworkView(artwork: covers[2], size: 58, circle: true)
-                    .overlay(Circle().strokeBorder(.white.opacity(0.5), lineWidth: 2))
-                    .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
-                    .offset(x: appeared ? -8 : -30, y: appeared ? 150 : 120)
+                    .zIndex(Double(-index))
             }
         }
-        .opacity(appeared ? 1 : 0)
         .accessibilityHidden(true)
     }
 }
@@ -427,20 +410,25 @@ private struct MixBackground: View {
     }
 }
 
-/// Presses down slightly, like a card being pushed.
-private struct HeroButtonStyle: ButtonStyle {
+/// Reports the press instead of drawing it, so a view around the button (the mix card
+/// with its play button) can press down as a whole.
+private struct PressReporting: ButtonStyle {
+    @Binding var isPressed: Bool
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, pressed in isPressed = pressed }
     }
 }
 
 // MARK: - Jump back in
 
-/// Up to six things the listener keeps going back to, as compact tiles in two columns.
+/// Up to eight things the listener keeps going back to, as a row of covers.
 private struct JumpBackIn: View {
     @Environment(Library.self) private var library
+
+    private static let limit = 8
+    private static let width: CGFloat = 156
 
     enum Item: Identifiable {
         case liked(count: Int, songs: [Song])
@@ -459,6 +447,7 @@ private struct JumpBackIn: View {
     }
 
     private var items: [Item] {
+        let limit = Self.limit
         var items: [Item] = []
         if !library.liked.isEmpty { items.append(.liked(count: library.liked.count, songs: library.liked)) }
         let playlists = library.userPlaylists.filter { !$0.songs.isEmpty }.sorted { $0.modified > $1.modified }
@@ -468,28 +457,24 @@ private struct JumpBackIn: View {
         for song in library.recent {
             guard let album = song.album, seenAlbums.insert(album.id).inserted else { continue }
             items.append(.album(AlbumSummary(id: album.id, title: album.title, artistLine: song.artistLine, artists: song.artists, artwork: song.artwork)))
-            if items.count >= 6 { break }
+            if items.count >= limit { break }
         }
-        for album in library.albums where items.count < 6 && seenAlbums.insert(album.id).inserted {
+        for album in library.albums where items.count < limit && seenAlbums.insert(album.id).inserted {
             items.append(.album(album))
         }
-        items += library.playlists.prefix(max(0, 6 - items.count)).map(Item.playlist)
-        return Array(items.prefix(6))
+        items += library.playlists.prefix(max(0, limit - items.count)).map(Item.playlist)
+        return Array(items.prefix(limit))
     }
 
     var body: some View {
         let items = items
         if items.count >= 2 {
-            VStack(alignment: .leading, spacing: 12) {
-                SectionHeader(title: "Jump back in")
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                    ForEach(items) { item in
-                        NavigationLink(value: route(item)) { tile(item) }
-                            .buttonStyle(HeroButtonStyle())
-                    }
+            ShelfView(title: "Jump back in") {
+                ForEach(items) { item in
+                    NavigationLink(value: route(item)) { card(item) }
+                        .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 20)
         }
     }
 
@@ -502,65 +487,35 @@ private struct JumpBackIn: View {
         }
     }
 
-    private func tile(_ item: Item) -> some View {
-        HStack(spacing: 10) {
-            Group {
-                switch item {
-                case .liked(_, let songs):
-                    // The listener's own liked covers, marked with a heart, rather than a stock colour.
-                    PlaylistMosaic(songs: songs, size: 56, cornerRadius: 0)
-                        .overlay(alignment: .bottomTrailing) {
-                            Image(systemName: "heart.fill")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white)
-                                .frame(width: 20, height: 20)
-                                .background(.black.opacity(0.45), in: .circle)
-                                .padding(3)
-                        }
-                case .userPlaylist(let p):
-                    PlaylistMosaic(songs: p.songs, size: 56, cornerRadius: 0)
-                case .album(let a):
-                    ArtworkView(artwork: a.artwork, size: 56, cornerRadius: 0)
-                case .playlist(let p):
-                    ArtworkView(artwork: p.artwork, size: 56, cornerRadius: 0)
-                }
-            }
-            .frame(width: 56, height: 56)
-            .clipped()
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title(item))
-                    .font(.footnote.weight(.semibold))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                if let subtitle = subtitle(item) {
-                    Text(subtitle).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.trailing, 8)
-        }
-        .frame(height: 56)
-        .background(.fill.tertiary, in: .rect(cornerRadius: 10, style: .continuous))
-        .clipShape(.rect(cornerRadius: 10, style: .continuous))
-        .foregroundStyle(.primary)
-    }
-
-    private func title(_ item: Item) -> String {
+    @ViewBuilder
+    private func card(_ item: Item) -> some View {
+        let width = Self.width
         switch item {
-        case .liked: "Liked Songs"
-        case .userPlaylist(let p): p.name
-        case .album(let a): a.title
-        case .playlist(let p): p.title
+        case .liked(let count, let songs):
+            // The listener's own liked covers, marked with a heart, rather than a stock colour.
+            CoverCard(title: "Liked Songs", subtitle: songCount(count), width: width) {
+                PlaylistMosaic(songs: songs, size: width)
+                    .overlay(alignment: .bottomTrailing) {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 28, height: 28)
+                            .background(.black.opacity(0.45), in: .circle)
+                            .padding(8)
+                    }
+            }
+        case .userPlaylist(let p):
+            CoverCard(title: p.name, subtitle: songCount(p.songs.count), width: width) {
+                PlaylistMosaic(songs: p.songs, size: width)
+            }
+        case .album(let a):
+            CoverCard(artwork: a.artwork, title: a.title, subtitle: a.artistLine.isEmpty ? nil : a.artistLine, width: width)
+        case .playlist(let p):
+            CoverCard(artwork: p.artwork, title: p.title, subtitle: p.subtitle, width: width)
         }
     }
 
-    private func subtitle(_ item: Item) -> String? {
-        switch item {
-        case .liked(let count, _): count == 1 ? "1 song" : "\(count) songs"
-        case .userPlaylist(let p): p.songs.count == 1 ? "1 song" : "\(p.songs.count) songs"
-        case .album(let a): a.artistLine.isEmpty ? nil : a.artistLine
-        case .playlist(let p): p.subtitle
-        }
+    private func songCount(_ count: Int) -> String {
+        count == 1 ? "1 song" : "\(count) songs"
     }
 }
-
