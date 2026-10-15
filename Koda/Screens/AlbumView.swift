@@ -34,7 +34,9 @@ struct AlbumView: View {
                                         subtitle: song.artistLine == page.album.artistLine ? durationText(song) : song.artistLine) {
                                     player.play(page.songs, startAt: index)
                                 }
-                                Divider().padding(.leading, 40)
+                                if index < page.songs.count - 1 {
+                                    Divider().padding(.leading, 40)
+                                }
                             }
                         }
                         .padding(.horizontal, 20)
@@ -62,6 +64,7 @@ struct AlbumView: View {
         }
         .background { ArtworkGlow(palette: palette.palette) }
         .navigationBarTitleDisplayMode(.inline)
+        .revealsTitle(album.title, after: 320)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 let saved = library.isSaved(album: summary.id)

@@ -181,7 +181,7 @@ struct HomeView: View {
                             sections(content)
                         }
                     }
-                    .padding(.top, 4)
+                    .padding(.top, 8)
                     .padding(.bottom, 28)
                     .transition(.opacity)
                 }
@@ -549,8 +549,8 @@ private struct HomeSkeleton: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
             HStack(spacing: 8) {
-                ForEach(0..<4) { _ in
-                    Capsule().fill(.quaternary).frame(width: 84, height: 34)
+                ForEach([92, 76, 104, 84], id: \.self) { width in
+                    Capsule().fill(.quaternary).frame(width: CGFloat(width), height: 36)
                 }
             }
             .padding(.horizontal, 20)
@@ -572,12 +572,16 @@ private struct HomeSkeleton: View {
             .padding(.horizontal, 20)
         }
         .placeholderPulse()
-        .padding(.top, 4)
+        .padding(.top, 8)
         .accessibilityLabel("Loading")
     }
 }
 
 /// Mood and genre filters across the top of Home; tapping the selected one clears it.
+///
+/// Clear glass capsules, the chosen one filled in the text colour, so the row reads
+/// like the system's own filter bars. Each chip is the same height and the row starts
+/// on the page's 20 pt margin, in line with everything under it.
 struct MoodChips: View {
     let moods: [Mood]
     let selected: Mood?
@@ -585,20 +589,34 @@ struct MoodChips: View {
 
     var body: some View {
         ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                ForEach(moods) { mood in
-                    let isSelected = mood == selected
-                    Button(mood.title) { onSelect(isSelected ? nil : mood) }
-                        .font(.subheadline.weight(.medium))
-                        .buttonStyle(.bordered)
-                        .buttonBorderShape(.capsule)
-                        .tint(isSelected ? .accentColor : .secondary)
-                        .foregroundStyle(isSelected ? Color.accentColor : .primary)
+            GlassEffectContainer(spacing: 8) {
+                HStack(spacing: 8) {
+                    ForEach(moods) { mood in
+                        let isSelected = mood == selected
+                        Button {
+                            withAnimation(.snappy(duration: 0.25)) { onSelect(isSelected ? nil : mood) }
+                        } label: {
+                            Text(mood.title)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(isSelected ? Color(.systemBackground) : .primary)
+                                .padding(.horizontal, 16)
+                                .frame(height: 36)
+                                .background {
+                                    if isSelected { Capsule().fill(.primary) }
+                                }
+                                .contentShape(.capsule)
+                        }
+                        .buttonStyle(.plain)
+                        .glassEffect(isSelected ? .identity : .regular.interactive(), in: .capsule)
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
                         .sensoryFeedback(.selection, trigger: isSelected)
+                    }
                 }
+                .padding(.vertical, 2)
             }
         }
         .scrollIndicators(.hidden)
+        .scrollClipDisabled()
         .contentMargins(.horizontal, 20, for: .scrollContent)
     }
 }

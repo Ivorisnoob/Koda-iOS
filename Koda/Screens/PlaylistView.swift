@@ -43,6 +43,7 @@ struct PlaylistView: View {
         }
         .background { ArtworkGlow(palette: palette.palette) }
         .navigationBarTitleDisplayMode(.inline)
+        .revealsTitle(state.value?.playlist.title ?? summary.title, after: 320)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 let saved = library.isSaved(playlist: summary.id)

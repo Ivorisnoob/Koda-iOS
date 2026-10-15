@@ -35,9 +35,7 @@ struct AsyncContent<Value, Content: View>: View {
     var body: some View {
         switch state {
         case .loading:
-            ProgressView()
-                .controlSize(.large)
-                .frame(maxWidth: .infinity, minHeight: 300)
+            SongListSkeleton()
         case .failed(let message):
             ContentUnavailableView {
                 Label("Couldn't Load", systemImage: "wifi.exclamationmark")
@@ -82,5 +80,63 @@ struct PlayShuffleButtons: View {
         .controlSize(.large)
         .buttonStyle(.glass)
         .sensoryFeedback(.impact(weight: .light), trigger: taps)
+    }
+}
+
+/// Rows of songs in placeholder shapes, pulsing while a page loads.
+struct SongListSkeleton: View {
+    var rows = 6
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(0..<rows, id: \.self) { index in
+                HStack(spacing: 12) {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.quaternary).frame(width: 48, height: 48)
+                    VStack(alignment: .leading, spacing: 7) {
+                        // Varied widths, so the rows read as text rather than bars.
+                        RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(width: [180, 140, 200, 120, 165, 150][index % 6], height: 13)
+                        RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(width: [110, 90, 130, 80, 100, 120][index % 6], height: 11)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .placeholderPulse()
+        .accessibilityElement()
+        .accessibilityLabel("Loading")
+    }
+}
+
+/// A page's title appears in the bar once its own header has scrolled away, as Music does.
+struct RevealedTitle: ViewModifier {
+    let title: String
+    let after: CGFloat
+    @State private var shown = false
+
+    func body(content: Content) -> some View {
+        content
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top > after
+            } action: { _, past in
+                withAnimation(.easeInOut(duration: 0.2)) { shown = past }
+            }
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(title)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .opacity(shown ? 1 : 0)
+                        .accessibilityHidden(!shown)
+                }
+            }
+    }
+}
+
+extension View {
+    /// Show `title` in the navigation bar after scrolling `after` points.
+    func revealsTitle(_ title: String, after: CGFloat) -> some View {
+        modifier(RevealedTitle(title: title, after: after))
     }
 }

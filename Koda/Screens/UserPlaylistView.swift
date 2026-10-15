@@ -60,6 +60,7 @@ struct UserPlaylistView: View {
         .environment(\.editMode, $editMode)
         .background { PlaylistGlow(songs: playlist.songs) }
         .navigationBarTitleDisplayMode(.inline)
+        .revealsTitle(playlist.name, after: 300)
         .toolbar {
             if !playlist.songs.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {

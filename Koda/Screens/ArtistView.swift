@@ -35,6 +35,7 @@ struct ArtistView: View {
         }
         .ignoresSafeArea(edges: .top)
         .navigationBarTitleDisplayMode(.inline)
+        .revealsTitle(state.value?.artist.name ?? summary.name, after: 340)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 let saved = library.isSaved(artist: summary.id)
