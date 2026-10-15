@@ -18,8 +18,6 @@ enum Platform {
 /// the middle, where the eye expects them; lyrics, queue and volume on the right.
 struct MacPlayerBar: View {
     let open: (NowPlayingView.Panel) -> Void
-    /// Where the cover sits in the window, for Now Playing to grow out of and return to.
-    var onArtworkFrame: (CGRect) -> Void = { _ in }
     @Environment(Player.self) private var player
 
     var body: some View {
@@ -46,7 +44,6 @@ struct MacPlayerBar: View {
             HStack(spacing: 12) {
                 ArtworkView(artwork: player.current?.artwork, size: 46, cornerRadius: 8)
                     .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
-                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { onArtworkFrame($0) }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(player.current?.title ?? "Not Playing")
                         .font(.callout.weight(.semibold))

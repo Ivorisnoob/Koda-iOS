@@ -28,9 +28,6 @@ struct MacRootView: View {
     @State private var renaming: UserPlaylist?
     @State private var deleting: UserPlaylist?
     @Environment(\.openWindow) private var openWindow
-    /// The player bar's cover and the window's size, for Now Playing to zoom out of the cover.
-    @State private var barArtwork: CGRect = .zero
-    @State private var detailFrame: CGRect = .zero
 
     var body: some View {
         dialogs(nowPlayingLayer(routing(searching(splitView))))
@@ -49,14 +46,12 @@ struct MacRootView: View {
                     NowPlayingView()
                         .environment(\.closeNowPlaying) { showsNowPlaying = false }
                         .navigationTitle("Now Playing")
-                        .transition(.scale(scale: 0.06, anchor: artworkAnchor).combined(with: .opacity))
                 } else {
                     page
-                        .transition(.opacity)
                 }
             }
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { detailFrame = $0 }
-            .animation(.spring(response: 0.5, dampingFraction: 0.88), value: showsNowPlaying)
+            // SwiftUI's own default for a view coming and going.
+            .animation(.default, value: showsNowPlaying)
         }
     }
 
@@ -68,10 +63,10 @@ struct MacRootView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
                 if player.current != nil {
-                    MacPlayerBar(open: { panel in
+                    MacPlayerBar { panel in
                         model.requestedPanel = panel
                         showsNowPlaying = true
-                    }, onArtworkFrame: { barArtwork = $0 })
+                    }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -303,13 +298,6 @@ struct MacRootView: View {
         case .lastFM: MacLastFMView()
         case .userPlaylist(let id): UserPlaylistView(id: id).id(id)
         }
-    }
-
-    /// The bar's cover as a point in the window, where Now Playing starts from; the bar's corner before it has one.
-    private var artworkAnchor: UnitPoint {
-        guard barArtwork != .zero, detailFrame.width > 0, detailFrame.height > 0 else { return UnitPoint(x: 0.1, y: 0.96) }
-        return UnitPoint(x: (barArtwork.midX - detailFrame.minX) / detailFrame.width,
-                         y: (barArtwork.midY - detailFrame.minY) / detailFrame.height)
     }
 
     private var path: Binding<[Route]> {
