@@ -11,7 +11,6 @@ final class HomeModel {
         var newReleases: Shelf?
         var chartArtists: [ArtistSummary] = []
         var trending: [Song] = []
-        var moods: [Mood] = []
     }
 
     /// Songs woven from the radios of what the listener plays most.
@@ -27,8 +26,6 @@ final class HomeModel {
     private(set) var isMixing = false
     /// Portraits for the listener's top artists, by channel id; fetched after the page shows.
     private(set) var artistPhotos: [String: Artwork] = [:]
-    private(set) var moodState: LoadState<[Shelf]>?
-    private(set) var selectedMood: Mood?
 
     func load(music: YouTubeMusic, library: Library) async {
         if state.value == nil { state = .loading }
@@ -42,7 +39,6 @@ final class HomeModel {
             let homePage = try await home
             var content = Content()
             content.shelves = homePage.shelves
-            content.moods = homePage.moods
             let explorePage = await explore
             content.newReleases = explorePage?.shelves.first { $0.title == "New albums & singles" }
             content.trending = trending(explorePage)
@@ -124,23 +120,6 @@ final class HomeModel {
             return nil
         } ?? []
     }
-
-    func select(_ mood: Mood?, music: YouTubeMusic) async {
-        selectedMood = mood
-        guard let mood else {
-            moodState = nil
-            return
-        }
-        moodState = .loading
-        do {
-            let page = try await music.home(params: mood.params)
-            guard selectedMood == mood else { return }
-            moodState = .loaded(page.shelves)
-        } catch {
-            guard selectedMood == mood else { return }
-            moodState = .failed(error.friendlyMessage)
-        }
-    }
 }
 
 struct HomeView: View {
@@ -167,19 +146,9 @@ struct HomeView: View {
                     }
                     .frame(minHeight: 400)
                 case .loaded(let content):
+                    // Moods and genres live on Search, as tiles; Home leads with what is yours.
                     LazyVStack(alignment: .leading, spacing: 30) {
-                        if !content.moods.isEmpty {
-                            MoodChips(moods: content.moods, selected: model.selectedMood) { mood in
-                                Task { await model.select(mood, music: app.music) }
-                            }
-                        }
-                        if let moodState = model.moodState {
-                            AsyncContent(state: moodState, retry: { await model.select(model.selectedMood, music: app.music) }) { shelves in
-                                ForEach(shelves) { shelf in ItemShelf(shelf: shelf, onPlay: play) }
-                            }
-                        } else {
-                            sections(content)
-                        }
+                        sections(content)
                     }
                     .padding(.top, 8)
                     .padding(.bottom, 28)
@@ -548,12 +517,6 @@ private struct JumpBackIn: View {
 private struct HomeSkeleton: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
-            HStack(spacing: 8) {
-                ForEach([92, 76, 104, 84], id: \.self) { width in
-                    Capsule().fill(.quaternary).frame(width: CGFloat(width), height: 36)
-                }
-            }
-            .padding(.horizontal, 20)
             RoundedRectangle(cornerRadius: 32, style: .continuous)
                 .fill(.quaternary)
                 .frame(height: 340)
@@ -574,49 +537,5 @@ private struct HomeSkeleton: View {
         .placeholderPulse()
         .padding(.top, 8)
         .accessibilityLabel("Loading")
-    }
-}
-
-/// Mood and genre filters across the top of Home; tapping the selected one clears it.
-///
-/// Clear glass capsules, the chosen one filled in the text colour, so the row reads
-/// like the system's own filter bars. Each chip is the same height and the row starts
-/// on the page's 20 pt margin, in line with everything under it.
-struct MoodChips: View {
-    let moods: [Mood]
-    let selected: Mood?
-    let onSelect: (Mood?) -> Void
-
-    var body: some View {
-        ScrollView(.horizontal) {
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    ForEach(moods) { mood in
-                        let isSelected = mood == selected
-                        Button {
-                            withAnimation(.snappy(duration: 0.25)) { onSelect(isSelected ? nil : mood) }
-                        } label: {
-                            Text(mood.title)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(isSelected ? Color(.systemBackground) : .primary)
-                                .padding(.horizontal, 16)
-                                .frame(height: 36)
-                                .background {
-                                    if isSelected { Capsule().fill(.primary) }
-                                }
-                                .contentShape(.capsule)
-                        }
-                        .buttonStyle(.plain)
-                        .glassEffect(isSelected ? .identity : .regular.interactive(), in: .capsule)
-                        .accessibilityAddTraits(isSelected ? .isSelected : [])
-                        .sensoryFeedback(.selection, trigger: isSelected)
-                    }
-                }
-                .padding(.vertical, 2)
-            }
-        }
-        .scrollIndicators(.hidden)
-        .scrollClipDisabled()
-        .contentMargins(.horizontal, 20, for: .scrollContent)
     }
 }
