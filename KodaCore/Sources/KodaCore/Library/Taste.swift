@@ -49,7 +49,7 @@ public struct Taste: Sendable, Equatable {
         self.seeds = seeds
     }
 
-    static func leadArtist(_ song: Song) -> String {
+    public static func leadArtist(_ song: Song) -> String {
         song.artists.first?.name ?? song.artistLine
     }
 

@@ -82,13 +82,31 @@ struct VolumeSlider: View {
 }
 
 private struct SystemVolumeView: UIViewRepresentable {
-    func makeUIView(context: Context) -> MPVolumeView {
-        let view = MPVolumeView(frame: .zero)
-        view.tintColor = .white
-        return view
+    func makeUIView(context: Context) -> CenteredVolumeView {
+        CenteredVolumeView()
     }
 
-    func updateUIView(_ view: MPVolumeView, context: Context) {}
+    func updateUIView(_ view: CenteredVolumeView, context: Context) {}
+}
+
+/// MPVolumeView draws its slider at the top of its bounds; this keeps it centred
+/// vertically, so it lines up with the speaker symbols on either side.
+final class CenteredVolumeView: UIView {
+    private let volume = MPVolumeView(frame: .zero)
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        volume.tintColor = .white
+        addSubview(volume)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let height = min(volume.sizeThatFits(CGSize(width: bounds.width, height: .greatestFiniteMagnitude)).height, bounds.height)
+        volume.frame = CGRect(x: 0, y: ((bounds.height - height) / 2).rounded(), width: bounds.width, height: height)
+    }
 }
 
 struct AirPlayButton: UIViewRepresentable {
