@@ -30,7 +30,7 @@ struct MacRootView: View {
     @Environment(\.openWindow) private var openWindow
     /// The player bar's cover and the window's size, for Now Playing to zoom out of the cover.
     @State private var barArtwork: CGRect = .zero
-    @State private var windowSize: CGSize = .zero
+    @State private var detailFrame: CGRect = .zero
 
     var body: some View {
         dialogs(nowPlayingLayer(routing(searching(splitView))))
@@ -41,13 +41,32 @@ struct MacRootView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 210, ideal: 236, max: 320)
         } detail: {
-            NavigationStack(path: path) {
-                detail
-                    .routeDestinations()
+            // Now Playing takes the place of the page, beside the sidebar, the way switching
+            // sections does. The window's toolbar and its sidebar button are never changed
+            // directly: hiding them while the app ran is what left the button stuck before.
+            ZStack {
+                if showsNowPlaying {
+                    NowPlayingView()
+                        .environment(\.closeNowPlaying) { showsNowPlaying = false }
+                        .navigationTitle("Now Playing")
+                        .transition(.scale(scale: 0.06, anchor: artworkAnchor).combined(with: .opacity))
+                } else {
+                    page
+                        .transition(.opacity)
+                }
             }
-            // While the player covers the window, the page's title and buttons step away.
-            .toolbarVisibility(showsNowPlaying ? .hidden : .automatic, for: .navigationBar)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { detailFrame = $0 }
+            .animation(.spring(response: 0.5, dampingFraction: 0.88), value: showsNowPlaying)
+        }
+    }
+
+    /// The selected section's pages, with the player bar under them.
+    private var page: some View {
+        NavigationStack(path: path) {
+            detail
+                .routeDestinations()
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
                 if player.current != nil {
                     MacPlayerBar(open: { panel in
                         model.requestedPanel = panel
@@ -57,7 +76,6 @@ struct MacRootView: View {
                 }
             }
             .animation(.smooth(duration: 0.35), value: player.current == nil)
-        }
     }
 
     private func searching<V: View>(_ content: V) -> some View {
@@ -113,21 +131,14 @@ struct MacRootView: View {
 
     private func nowPlayingLayer<V: View>(_ content: V) -> some View {
         content
-        // Now Playing is a layer of the window rather than a full-screen presentation: presented,
-        // Catalyst hides the window's toolbar under it and the sidebar button came back stuck.
-        // Now Playing grows out of the player bar's cover and goes back into it, the way the Mac
-        // opens anything from where it sits; the sidebar button steps away while it is open.
-        .overlay {
+        // Esc closes Now Playing, as it closes a full view anywhere on the Mac.
+        .background {
             if showsNowPlaying {
-                NowPlayingView()
-                    .environment(\.closeNowPlaying) { showsNowPlaying = false }
-                    .transition(.scale(scale: 0.06, anchor: artworkAnchor).combined(with: .opacity))
-                    .zIndex(1)
+                Button("Close Now Playing") { showsNowPlaying = false }
+                    .keyboardShortcut(.cancelAction)
+                    .hidden()
             }
         }
-        .onGeometryChange(for: CGSize.self) { $0.size } action: { windowSize = $0 }
-        .animation(.spring(response: 0.5, dampingFraction: 0.88), value: showsNowPlaying)
-        .toolbar(removing: showsNowPlaying ? .sidebarToggle : nil)
         .onChange(of: model.isNowPlayingPresented) { _, shown in showsNowPlaying = shown }
         .onChange(of: showsNowPlaying) { _, shown in model.isNowPlayingPresented = shown }
         .task(id: player.current?.artwork) { await model.nowPlayingPalette.load(player.current?.artwork) }
@@ -233,8 +244,16 @@ struct MacRootView: View {
     /// soft rounded fill the Mac's own sidebars use, rather than Catalyst's iPad-sized row.
     private func sidebarRow(_ title: String, _ systemImage: String, _ target: MacSection, count: Int = 0) -> some View {
         Button {
-            // Clicking the section you're in goes back to its first page, as Music's sidebar does.
-            if section == target { paths[target] = [] } else { section = target }
+            // A click in the sidebar always lands on its page, closing Now Playing if it's open;
+            // clicking the section you're in goes back to its first page, as Music's sidebar does.
+            if showsNowPlaying {
+                showsNowPlaying = false
+                section = target
+            } else if section == target {
+                paths[target] = []
+            } else {
+                section = target
+            }
         } label: {
             MacSidebarLabel(title: title, systemImage: systemImage, isSelected: section == target, count: count)
         }
@@ -288,8 +307,9 @@ struct MacRootView: View {
 
     /// The bar's cover as a point in the window, where Now Playing starts from; the bar's corner before it has one.
     private var artworkAnchor: UnitPoint {
-        guard barArtwork != .zero, windowSize.width > 0, windowSize.height > 0 else { return UnitPoint(x: 0.3, y: 0.96) }
-        return UnitPoint(x: barArtwork.midX / windowSize.width, y: barArtwork.midY / windowSize.height)
+        guard barArtwork != .zero, detailFrame.width > 0, detailFrame.height > 0 else { return UnitPoint(x: 0.1, y: 0.96) }
+        return UnitPoint(x: (barArtwork.midX - detailFrame.minX) / detailFrame.width,
+                         y: (barArtwork.midY - detailFrame.minY) / detailFrame.height)
     }
 
     private var path: Binding<[Route]> {
@@ -307,6 +327,7 @@ struct MacRootView: View {
         if model.settings.savesSearchHistory { library.recordSearch(text) }
         search.query = text
         paths[.search] = []
+        showsNowPlaying = false
         section = .search
         Task { await search.search(text, music: model.music) }
     }
