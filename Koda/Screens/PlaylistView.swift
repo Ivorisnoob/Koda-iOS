@@ -64,7 +64,7 @@ struct PlaylistView: View {
             DownloadButton(songs: songs, allSongs: allSongs)
                 .buttonStyle(MacIconButtonStyle())
         }
-        Menu {
+        MacMoreMenu {
             if !songs.isEmpty {
                 Button("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward") { player.playNext(songs) }
                 Button("Add to Queue", systemImage: "text.line.last.and.arrowtriangle.forward") { player.addToQueue(songs) }
@@ -73,12 +73,7 @@ struct PlaylistView: View {
             ShareLink(item: URL(string: "https://music.youtube.com/playlist?list=\(summary.id)")!) {
                 Label("Share", systemImage: "square.and.arrow.up")
             }
-        } label: {
-            Label("More", systemImage: "ellipsis")
         }
-        .menuIndicator(.hidden)
-        .buttonStyle(MacIconButtonStyle())
-        .help("More")
     }
 
     private var phoneBody: some View {

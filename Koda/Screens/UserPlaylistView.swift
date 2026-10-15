@@ -121,7 +121,7 @@ struct UserPlaylistView: View {
                     DownloadButton(songs: playlist.songs)
                         .buttonStyle(MacIconButtonStyle())
                 }
-                Menu {
+                MacMoreMenu {
                     if !playlist.songs.isEmpty {
                         Button("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward") { player.playNext(playlist.songs) }
                         Button("Add to Queue", systemImage: "text.line.last.and.arrowtriangle.forward") { player.addToQueue(playlist.songs) }
@@ -132,12 +132,7 @@ struct UserPlaylistView: View {
                         renaming = true
                     }
                     Button("Delete Playlist…", systemImage: "trash", role: .destructive) { confirmDelete = true }
-                } label: {
-                    Label("More", systemImage: "ellipsis")
                 }
-                .menuIndicator(.hidden)
-                .buttonStyle(MacIconButtonStyle())
-                .help("More")
             }
             if playlist.songs.isEmpty {
                 ContentUnavailableView {

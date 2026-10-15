@@ -37,6 +37,14 @@ struct SongMenuButton: View {
     let song: Song
 
     var body: some View {
+        if Platform.isMac {
+            MacMoreMenu(size: 28, isGlass: false) { SongMenuItems(song: song) }
+        } else {
+            phoneMenu
+        }
+    }
+
+    private var phoneMenu: some View {
         Menu {
             SongMenuItems(song: song)
         } label: {

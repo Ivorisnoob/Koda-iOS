@@ -11,6 +11,7 @@ struct NowPlayingView: View {
     @Environment(Player.self) private var player
     @Environment(Library.self) private var library
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.closeNowPlaying) private var closeNowPlaying
     @State private var panel: Panel = .artwork
     @Namespace private var artworkSpace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -25,7 +26,7 @@ struct NowPlayingView: View {
         .onGeometryChange(for: Bool.self) { $0.size.width >= 900 && $0.size.height >= 560 } action: { isWide = $0 }
         .foregroundStyle(.white)
         .environment(\.colorScheme, .dark)
-        .onChange(of: player.current == nil) { _, isEmpty in if isEmpty { dismiss() } }
+        .onChange(of: player.current == nil) { _, isEmpty in if isEmpty { close() } }
         .onChange(of: app.requestedPanel, initial: true) { _, requested in
             guard let requested else { return }
             app.requestedPanel = nil
@@ -118,10 +119,15 @@ struct NowPlayingView: View {
         }
         // Escape closes the player, as it closes any full-window view on the Mac.
         .background {
-            Button("Close") { dismiss() }
+            Button("Close") { close() }
                 .keyboardShortcut(.cancelAction)
                 .hidden()
         }
+    }
+
+    /// Presented, it dismisses; on the Mac, where it is a layer of the window, the window closes it.
+    private func close() {
+        if let closeNowPlaying { closeNowPlaying() } else { dismiss() }
     }
 
     /// The song was asked for and no sound has come yet.
@@ -129,7 +135,7 @@ struct NowPlayingView: View {
 
     private var topBar: some View {
         HStack {
-            Button { dismiss() } label: {
+            Button { close() } label: {
                 Image(systemName: "chevron.down")
                     .font(.body.weight(.semibold))
                     .frame(width: 44, height: 44)
@@ -159,6 +165,7 @@ struct NowPlayingView: View {
                 }
                 .buttonStyle(.glass)
                 .buttonBorderShape(.circle)
+                .menuIndicator(.hidden)
                 .accessibilityLabel("More")
             } else {
                 Color.clear.frame(width: 44, height: 44)
@@ -439,6 +446,7 @@ private struct SleepTimerPill: View {
             .glassEffect(.regular.interactive(), in: .capsule)
         }
         .buttonStyle(.plain)
+        .menuIndicator(.hidden)
         .accessibilityLabel("Sleep timer")
     }
 }
@@ -462,4 +470,9 @@ private struct LyricsTimingMenu: View {
         // The menu stays open between steps, so the listener can nudge and watch the lyrics move.
         .menuActionDismissBehavior(.disabled)
     }
+}
+
+extension EnvironmentValues {
+    /// Closes Now Playing when it is shown as part of a window rather than presented.
+    @Entry var closeNowPlaying: (() -> Void)? = nil
 }

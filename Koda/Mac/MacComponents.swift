@@ -588,21 +588,11 @@ private struct MacTrackRow: View {
                 .font(.callout.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(width: 44, alignment: .trailing)
-            Menu {
+            MacMoreMenu(size: 28, isGlass: false) {
                 if let extraMenu { extraMenu }
                 SongMenuItems(song: song)
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.body.weight(.semibold))
-                    .frame(width: 28, height: 28)
-                    .contentShape(.rect)
             }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
-            .menuIndicator(.hidden)
-            .foregroundStyle(.secondary)
             .opacity(hovering ? 1 : 0)
-            .help("More")
         }
         .font(.callout)
         .padding(.horizontal, 12)
@@ -711,7 +701,7 @@ struct MacSongTile: View {
                 }
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                SongMenuButton(song: song)
+                MacMoreMenu(size: 28, isGlass: false) { SongMenuItems(song: song) }
                     .opacity(hovering ? 1 : 0)
             }
             .padding(6)
@@ -743,5 +733,41 @@ struct MacSymbolCover: View {
                     .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
             }
             .frame(width: size, height: size)
+    }
+}
+
+/// The Mac's ••• menu. Catalyst draws a SwiftUI `Menu` as a pull-down button, a pill with a
+/// chevron, unless the menu is a plain button; so the label here is drawn by Koda, a glass
+/// circle in headers and bare dots in rows, and Catalyst adds nothing around it.
+struct MacMoreMenu<Items: View>: View {
+    var size: CGFloat = 38
+    var isGlass = true
+    @ViewBuilder var items: () -> Items
+    @State private var hovering = false
+
+    var body: some View {
+        Menu {
+            items()
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: isGlass ? 15 : 13, weight: .semibold))
+                .foregroundStyle(isGlass ? Color.primary : Color.secondary)
+                .frame(width: size, height: size)
+                .background {
+                    if isGlass {
+                        Circle().fill(.clear).glassEffect(.regular, in: .circle)
+                    } else {
+                        Circle().fill(.primary.opacity(hovering ? 0.08 : 0))
+                    }
+                }
+                .contentShape(.circle)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .onHover { hovering = $0 }
+        .help("More")
+        .accessibilityLabel("More")
     }
 }

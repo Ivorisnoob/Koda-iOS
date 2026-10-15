@@ -27,10 +27,13 @@ struct MacRootView: View {
     @State private var draftName = ""
     @State private var renaming: UserPlaylist?
     @State private var deleting: UserPlaylist?
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        @Bindable var model = model
-        @Bindable var search = search
+        dialogs(nowPlayingLayer(routing(searching(splitView))))
+    }
+
+    private var splitView: some View {
         NavigationSplitView {
             sidebar
                 .navigationSplitViewColumnWidth(min: 210, ideal: 236, max: 320)
@@ -50,6 +53,11 @@ struct MacRootView: View {
             }
             .animation(.smooth(duration: 0.35), value: player.current == nil)
         }
+    }
+
+    private func searching<V: View>(_ content: V) -> some View {
+        @Bindable var search = search
+        return content
         .searchable(text: $search.query, placement: .sidebar, prompt: "Songs, artists, albums or a link")
         .searchFocused($searchFocused)
         .searchSuggestions {
@@ -70,6 +78,10 @@ struct MacRootView: View {
             }
         }
         .task(id: search.query) { await search.suggest(music: model.music) }
+    }
+
+    private func routing<V: View>(_ content: V) -> some View {
+        content
         .onChange(of: model.selectedTab) { _, tab in
             switch tab {
             case .home: section = .home
@@ -89,22 +101,40 @@ struct MacRootView: View {
             model.pendingRoute = nil
             path.wrappedValue.append(route)
         }
-        .fullScreenCover(isPresented: $showsNowPlaying) {
-            NowPlayingView()
-                .appEnvironment(model)
+        .onOpenURL { url in
+            if !model.open(url) { model.linkError = "Koda can open YouTube Music songs, albums, playlists and artists." }
         }
+    }
+
+    private func nowPlayingLayer<V: View>(_ content: V) -> some View {
+        content
+        // Now Playing is a layer of the window rather than a full-screen presentation: presented,
+        // Catalyst hides the window's toolbar under it and the sidebar button came back stuck.
+        .overlay {
+            if showsNowPlaying {
+                NowPlayingView()
+                    .environment(\.closeNowPlaying) { showsNowPlaying = false }
+                    .ignoresSafeArea()
+                    .transition(.move(edge: .bottom))
+                    .zIndex(1)
+            }
+        }
+        .animation(.spring(response: 0.45, dampingFraction: 1), value: showsNowPlaying)
+        .toolbar(removing: showsNowPlaying ? .sidebarToggle : nil)
         .onChange(of: model.isNowPlayingPresented) { _, shown in showsNowPlaying = shown }
         .onChange(of: showsNowPlaying) { _, shown in model.isNowPlayingPresented = shown }
         .task(id: player.current?.artwork) { await model.nowPlayingPalette.load(player.current?.artwork) }
         .playlistPicker(whenOnTop: !showsNowPlaying)
-        .sheet(isPresented: $model.isProfilePresented) {
-            ProfileView()
-                .appEnvironment(model)
-                .frame(minWidth: 540, idealWidth: 600, minHeight: 640, idealHeight: 760)
+        // Settings is a window of its own on the Mac; one, brought forward if it's already open.
+        .onChange(of: model.isProfilePresented) { _, asked in
+            guard asked else { return }
+            model.isProfilePresented = false
+            openWindow(id: MacSettingsView.windowID, value: MacSettingsView.windowID)
         }
-        .onOpenURL { url in
-            if !model.open(url) { model.linkError = "Koda can open YouTube Music songs, albums, playlists and artists." }
-        }
+    }
+
+    private func dialogs<V: View>(_ content: V) -> some View {
+        content
         .alert("Couldn't Open Link", isPresented: Binding(get: { model.linkError != nil }, set: { if !$0 { model.linkError = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -209,7 +239,7 @@ struct MacRootView: View {
                 AvatarView(size: 28)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(model.profile.displayName).font(.callout.weight(.semibold)).lineLimit(1)
-                    Text("Profile & Settings").font(.caption).foregroundStyle(.secondary)
+                    Text("Settings").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "gearshape")

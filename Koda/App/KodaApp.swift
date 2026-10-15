@@ -23,6 +23,16 @@ struct KodaApp: App {
             if phase != .active { model.saveState() }
             if phase == .active { model.lastFM.syncSoon() }
         }
+
+        #if targetEnvironment(macCatalyst)
+        // Keyed by one value, so asking again brings the open Settings window forward.
+        WindowGroup("Settings", id: MacSettingsView.windowID, for: String.self) { _ in
+            MacSettingsView()
+                .appEnvironment(model)
+                .preferredColorScheme(model.settings.theme.colorScheme)
+        }
+        .defaultSize(width: 820, height: 600)
+        #endif
     }
 }
 

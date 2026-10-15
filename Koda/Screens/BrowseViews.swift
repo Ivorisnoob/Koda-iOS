@@ -286,14 +286,10 @@ struct SongListView: View {
                 ) {
                     PlaylistMosaic(songs: songs, size: 232, cornerRadius: 12)
                 } actions: {
-                    Menu {
+                    MacMoreMenu {
                         Button("Add to Queue", systemImage: "text.line.last.and.arrowtriangle.forward") { player.addToQueue(songs) }
                         Button("Add to Playlist…", systemImage: "text.badge.plus") { app.addToPlaylist(songs) }
-                    } label: {
-                        Label("More", systemImage: "ellipsis")
                     }
-                    .menuIndicator(.hidden)
-                    .buttonStyle(MacIconButtonStyle())
                 }
                 MacTrackList(songs: songs) { player.play(songs, startAt: $0) }
             }
