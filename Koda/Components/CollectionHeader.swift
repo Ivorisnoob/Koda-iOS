@@ -1,5 +1,6 @@
 import KodaCore
 import SwiftUI
+import UIKit
 
 /// The top of an album or playlist page.
 struct CollectionHeader: View {
@@ -17,6 +18,18 @@ struct CollectionHeader: View {
     let shuffle: () -> Void
 
     @State private var expanded = false
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// The cover's colour, made readable on this background: a colourless cover's would be
+    /// white or grey, so Koda's accent stands in; light mode darkens a bright one, dark mode
+    /// lightens a deep one.
+    private var readableAccent: Color {
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        guard UIColor(accent).getHue(&h, saturation: &s, brightness: &b, alpha: &a), s >= 0.2 else { return .accentColor }
+        return colorScheme == .dark
+            ? Color(hue: h, saturation: min(s, 0.7), brightness: max(b, 0.85))
+            : Color(hue: h, saturation: max(s, 0.6), brightness: min(b, 0.5))
+    }
 
     var body: some View {
         VStack(spacing: 14) {
@@ -31,7 +44,7 @@ struct CollectionHeader: View {
                 if let byline, !byline.isEmpty {
                     let opens = !ArtistRef.linked(bylineArtists).isEmpty
                     ArtistLinks(line: byline, artists: bylineArtists, open: openArtist) {
-                        Text(byline).font(.title3).foregroundStyle(opens ? accent : .secondary).lineLimit(1)
+                        Text(byline).font(.title3).foregroundStyle(opens ? readableAccent : .secondary).lineLimit(1)
                     }
                 }
                 if let detail, !detail.isEmpty {
