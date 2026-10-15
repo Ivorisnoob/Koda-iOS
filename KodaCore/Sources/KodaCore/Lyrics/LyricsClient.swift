@@ -37,23 +37,33 @@ public struct LyricsClient: Sendable {
         var duration: TimeInterval?
     }
 
-    public func lyrics(for song: Song) async -> Lyrics? {
-        if let cached = await Self.cache[song.id] { return cached }
+    /// Lyrics for `song` from the given services, ranked in the order given.
+    public func lyrics(for song: Song, sources: [LyricsSource] = LyricsSource.allCases) async -> Lyrics? {
+        guard !sources.isEmpty else { return nil }
+        let key = song.id + "|" + sources.map(\.rawValue).joined(separator: ",")
+        if let cached = await Self.cache[key] { return cached }
         let query = Query(title: song.title, artist: song.artists.first?.name ?? song.artistLine,
                           album: song.album?.title, duration: song.duration)
-        let found = await best(query)
-        if let found { await Self.cache.store(found, for: song.id) }
+        let found = await best(query, sources: sources)
+        if let found { await Self.cache.store(found, for: key) }
         return found
+    }
+
+    /// Forget lyrics found this session, so the next look asks the services again.
+    public func clearCache() async {
+        await Self.cache.clear()
     }
 
     // MARK: Choosing
 
-    private func best(_ query: Query) async -> Lyrics? {
-        let providers: [@Sendable () async -> Lyrics?] = [
-            { await youLyPlus(query) },
-            { await betterLyrics(query) },
-            { await lrclib(query) },
-        ]
+    private func best(_ query: Query, sources: [LyricsSource]) async -> Lyrics? {
+        let providers = sources.map { source -> @Sendable () async -> Lyrics? in
+            switch source {
+            case .youLyPlus: { await youLyPlus(query) }
+            case .betterLyrics: { await betterLyrics(query) }
+            case .lrclib: { await lrclib(query) }
+            }
+        }
         return await withTaskGroup(of: (Int, Lyrics?)?.self) { group in
             for (rank, provider) in providers.enumerated() {
                 group.addTask { (rank, await provider()) }
@@ -196,9 +206,38 @@ private actor LyricsCache {
 
     subscript(id: String) -> Lyrics? { entries[id] }
 
+    func clear() {
+        entries = [:]
+        order = []
+    }
+
     func store(_ lyrics: Lyrics, for id: String) {
         if entries[id] == nil { order.append(id) }
         entries[id] = lyrics
         if order.count > 60 { entries[order.removeFirst()] = nil }
+    }
+}
+
+/// A service lyrics can come from.
+public enum LyricsSource: String, CaseIterable, Codable, Sendable, Identifiable {
+    case youLyPlus, betterLyrics, lrclib
+
+    public var id: Self { self }
+
+    public var title: String {
+        switch self {
+        case .youLyPlus: "YouLyPlus"
+        case .betterLyrics: "BetterLyrics"
+        case .lrclib: "LRCLIB"
+        }
+    }
+
+    /// What the listener gets from it.
+    public var detail: String {
+        switch self {
+        case .youLyPlus: "Word-by-word, with duets and backing vocals"
+        case .betterLyrics: "Word-by-word, from several catalogues"
+        case .lrclib: "Line-by-line and plain lyrics, community-made"
+        }
     }
 }

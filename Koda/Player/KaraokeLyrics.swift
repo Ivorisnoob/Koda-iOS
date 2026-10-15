@@ -159,10 +159,10 @@ struct LyricRow: View {
     let hasDuet: Bool
     let offset: TimeInterval
 
-    nonisolated static let fontSize: CGFloat = 30
-    nonisolated static let backgroundFontSize: CGFloat = 21
-    static let font = Font.system(size: fontSize, weight: .bold)
-    static let backgroundFont = Font.system(size: backgroundFontSize, weight: .semibold)
+    @Environment(AppModel.self) private var app
+
+    nonisolated static let defaultFontSize: CGFloat = 30
+    private var style: LyricsStyle { LyricsStyle(app.settings) }
 
     private var alignment: HorizontalAlignment {
         switch line.voice {
@@ -184,17 +184,17 @@ struct LyricRow: View {
         VStack(alignment: alignment, spacing: 6) {
             if line.isWordTimed {
                 if isCurrent {
-                    KaraokeLine(line: line, offset: offset, alignment: alignment)
+                    KaraokeLine(line: line, offset: offset, alignment: alignment, style: style)
                 } else {
-                    WordFlow(alignment: alignment) {
+                    WordFlow(alignment: alignment, spacing: style.spacing) {
                         ForEach(Array(line.words.enumerated()), id: \.offset) { _, word in
-                            Text(word.text).font(Self.font).layoutValue(key: SpaceAfter.self, value: word.spaceAfter)
+                            Text(word.text).font(style.font).layoutValue(key: SpaceAfter.self, value: word.spaceAfter)
                         }
                     }
-                    if !line.background.isEmpty {
-                        WordFlow(alignment: alignment, spacing: Self.backgroundFontSize * 0.25) {
+                    if style.showsBackingVocals, !line.background.isEmpty {
+                        WordFlow(alignment: alignment, spacing: style.backgroundSpacing) {
                             ForEach(Array(line.background.enumerated()), id: \.offset) { _, word in
-                                Text(word.text).font(Self.backgroundFont).layoutValue(key: SpaceAfter.self, value: word.spaceAfter)
+                                Text(word.text).font(style.backgroundFont).layoutValue(key: SpaceAfter.self, value: word.spaceAfter)
                             }
                         }
                         .opacity(0.7)
@@ -202,7 +202,7 @@ struct LyricRow: View {
                 }
             } else {
                 Text(line.text.isEmpty ? "♪" : line.text)
-                    .font(Self.font)
+                    .font(style.font)
                     .multilineTextAlignment(line.voice == .duet ? .trailing : line.voice == .together ? .center : .leading)
                     // Line-timed lyrics light as a whole line; no word fill is invented for them.
                     .shadow(color: .white.opacity(isCurrent ? 0.35 : 0), radius: isCurrent ? 14 : 0)
@@ -227,23 +227,26 @@ private struct KaraokeLine: View {
     let line: LyricLine
     let offset: TimeInterval
     let alignment: HorizontalAlignment
+    let style: LyricsStyle
     @Environment(Player.self) private var player
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var motion: Bool { style.motion && !reduceMotion }
 
     var body: some View {
         TimelineView(.animation(paused: !player.wantsToPlay)) { context in
             let time = player.position(at: context.date) + SyncedLyrics.lead - offset
             VStack(alignment: alignment, spacing: 6) {
-                WordFlow(alignment: alignment) {
+                WordFlow(alignment: alignment, spacing: style.spacing) {
                     ForEach(Array(line.words.enumerated()), id: \.offset) { _, word in
-                        KaraokeWord(word: word, time: time, font: LyricRow.font, lift: reduceMotion ? 0 : 2.5, swells: !reduceMotion)
+                        KaraokeWord(word: word, time: time, font: style.font, lift: motion ? 2.5 : 0, swells: motion)
                             .layoutValue(key: SpaceAfter.self, value: word.spaceAfter)
                     }
                 }
-                if !line.background.isEmpty {
-                    WordFlow(alignment: alignment, spacing: LyricRow.backgroundFontSize * 0.25) {
+                if style.showsBackingVocals, !line.background.isEmpty {
+                    WordFlow(alignment: alignment, spacing: style.backgroundSpacing) {
                         ForEach(Array(line.background.enumerated()), id: \.offset) { _, word in
-                            KaraokeWord(word: word, time: time, font: LyricRow.backgroundFont, lift: reduceMotion ? 0 : 1.5, swells: false)
+                            KaraokeWord(word: word, time: time, font: style.backgroundFont, lift: motion ? 1.5 : 0, swells: false)
                                 .layoutValue(key: SpaceAfter.self, value: word.spaceAfter)
                         }
                     }
@@ -317,7 +320,7 @@ nonisolated struct SpaceAfter: LayoutValueKey {
 struct WordFlow: Layout {
     var alignment: HorizontalAlignment = .leading
     /// The width of a space in the lyric font; a quarter of its size.
-    var spacing: CGFloat = LyricRow.fontSize * 0.25
+    var spacing: CGFloat = LyricRow.defaultFontSize * 0.25
     var lineSpacing: CGFloat = 2
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
@@ -396,4 +399,24 @@ struct LyricsLoading: View {
         .frame(maxHeight: .infinity, alignment: .top)
         .accessibilityLabel("Loading lyrics")
     }
+}
+
+/// The lyric settings a line is drawn with.
+struct LyricsStyle {
+    var fontSize: CGFloat
+    var motion: Bool
+    var showsBackingVocals: Bool
+
+    @MainActor
+    init(_ settings: AppSettings) {
+        fontSize = settings.lyricsSize.fontSize
+        motion = settings.lyricsMotion
+        showsBackingVocals = settings.showsBackingVocals
+    }
+
+    var font: Font { .system(size: fontSize, weight: .bold) }
+    var backgroundFont: Font { .system(size: fontSize * 0.7, weight: .semibold) }
+    /// A space is about a quarter of the type size.
+    var spacing: CGFloat { fontSize * 0.25 }
+    var backgroundSpacing: CGFloat { fontSize * 0.7 * 0.25 }
 }

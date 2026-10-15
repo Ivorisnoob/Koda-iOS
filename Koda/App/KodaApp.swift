@@ -12,6 +12,7 @@ struct KodaApp: App {
                 .environment(model)
                 .environment(model.player)
                 .environment(model.library)
+                .preferredColorScheme(model.settings.theme.colorScheme)
         }
         .onChange(of: scenePhase) { _, phase in
             // The queue and position survive the app being closed from the switcher.

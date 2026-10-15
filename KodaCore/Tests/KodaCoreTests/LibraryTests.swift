@@ -107,3 +107,66 @@ import Testing
         #expect(library.lyricsOffsets["a"] == nil)
     }
 }
+
+@MainActor
+@Suite struct LibraryBackupTests {
+    @Test func backupRestoresEverythingElsewhere() throws {
+        let source = Library(directory: nil)
+        let song = Song(id: "a", title: "A", artistLine: "X", duration: 200)
+        source.toggleLike(song)
+        source.recordPlay(song)
+        source.addListening(42, to: song)
+        let playlist = source.createPlaylist(named: "Mine", songs: [song])
+        source.setLyricsOffset(0.4, for: "a")
+        let data = try #require(source.backupData())
+
+        let target = Library(directory: nil)
+        target.toggleLike(Song(id: "z", title: "Z", artistLine: ""))
+        try target.restore(from: data)
+        #expect(target.liked.map(\.id) == ["a"])
+        #expect(target.userPlaylist(playlist.id)?.songs.map(\.id) == ["a"])
+        #expect(target.songStats["a"]?.seconds == 42)
+        #expect(target.lyricsOffset(for: "a") == 0.4)
+    }
+
+    @Test func refusesFilesThatAreNotBackups() {
+        let library = Library(directory: nil)
+        library.toggleLike(Song(id: "a", title: "A", artistLine: ""))
+        #expect(throws: Library.BackupError.self) { try library.restore(from: Data(#"{"liked":[]}"#.utf8)) }
+        #expect(throws: Library.BackupError.self) { try library.restore(from: Data("not json".utf8)) }
+        #expect(library.liked.map(\.id) == ["a"])
+    }
+}
+
+@MainActor
+@Suite struct TasteTests {
+    private func song(_ id: String, _ artist: String) -> Song {
+        Song(id: id, title: id, artistLine: artist, artists: [ArtistRef(id: "UC\(artist)", name: artist)])
+    }
+
+    @Test func favoursWhatIsPlayedLately() {
+        let library = Library(directory: nil)
+        let now = Date(timeIntervalSince1970: 1_760_000_000)
+        let old = song("old", "Old Band"), new = song("new", "New Band"), newer = song("newer", "New Band")
+        // Played often two months ago; that fades below a few plays this week.
+        for _ in 0..<10 { library.recordPlay(old, at: now.addingTimeInterval(-60 * 86_400)) }
+        for _ in 0..<3 { library.recordPlay(new, at: now.addingTimeInterval(-86_400)) }
+        library.recordPlay(newer, at: now)
+        let taste = Taste(library: library, now: now)
+        #expect(taste.artists == ["New Band", "Old Band"])
+        // One seed per artist, that artist's strongest song.
+        #expect(taste.seeds.map(\.id) == ["new", "old"])
+    }
+
+    @Test func emptyWithoutListening() {
+        #expect(Taste(library: Library(directory: nil)).isEmpty)
+    }
+
+    @Test func weavesRadiosWithoutRepeats() {
+        let a = [song("a1", "A"), song("shared", "S"), song("a2", "A")]
+        let b = [song("b1", "B"), song("shared", "S")]
+        let woven = Taste.weave([a, b], excluding: ["a2"])
+        #expect(woven.map(\.id) == ["a1", "b1", "shared"])
+        #expect(Taste.weave([a, b], limit: 2).count == 2)
+    }
+}

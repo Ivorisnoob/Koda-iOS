@@ -30,10 +30,10 @@ struct LyricsPanel: View {
             }
         }
         .frame(maxHeight: .infinity)
-        .task(id: player.current?.id) {
+        .task(id: LyricsRequest(songId: player.current?.id, sources: app.settings.lyricsSources)) {
             guard let song = player.current else { return }
             state = .loading
-            let found = await app.lyrics.lyrics(for: song)
+            let found = await app.lyrics.lyrics(for: song, sources: app.settings.lyricsSources)
             guard player.current?.id == song.id else { return }
             state = .loaded(found)
         }
@@ -99,4 +99,10 @@ struct LyricsTimingControl: View {
         .accessibilityLabel("Show lyrics \(label.lowercased())")
         .transition(.scale.combined(with: .opacity))
     }
+}
+
+/// What the panel looks lyrics up for; a change of song or of sources looks again.
+private struct LyricsRequest: Equatable {
+    var songId: String?
+    var sources: [LyricsSource]
 }

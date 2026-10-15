@@ -14,6 +14,8 @@ enum Route: Hashable {
     case userPlaylist(UUID)
     /// Listening statistics in full.
     case stats
+    /// Songs the app put together, such as Your Mix.
+    case songList(title: String, subtitle: String?, songs: [Song])
 
     enum SongSource: Hashable {
         case liked, recent
@@ -42,6 +44,7 @@ extension View {
             case .shelf(let shelf): ShelfGridView(shelf: shelf)
             case .userPlaylist(let id): UserPlaylistView(id: id)
             case .stats: StatsView()
+            case .songList(let title, let subtitle, let songs): SongListView(title: title, subtitle: subtitle, songs: songs)
             }
         }
     }

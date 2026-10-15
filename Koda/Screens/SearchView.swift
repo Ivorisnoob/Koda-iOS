@@ -91,7 +91,7 @@ struct SearchView: View {
             app.openLink(link)
             return
         }
-        library.recordSearch(text)
+        if app.settings.savesSearchHistory { library.recordSearch(text) }
         Task { await model.search(text, music: app.music) }
     }
 

@@ -17,7 +17,7 @@ struct NowPlayingView: View {
 
     var body: some View {
         ZStack {
-            MeshBackground(palette: palette.palette, isAnimating: player.wantsToPlay)
+            MeshBackground(palette: palette.palette, isAnimating: player.wantsToPlay && app.settings.animatesPlayerBackground)
             VStack(spacing: 0) {
                 topBar
                 switch panel {

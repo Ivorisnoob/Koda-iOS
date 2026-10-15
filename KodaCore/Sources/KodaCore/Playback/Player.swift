@@ -44,6 +44,13 @@ public final class Player {
     public var autoplay = true {
         didSet { persistSettings() }
     }
+    /// Bring loud masters down to YouTube's loudness target, so songs play at a similar volume.
+    public var normalizesVolume = true {
+        didSet {
+            persistSettings()
+            applyLoudness(currentLoudnessDb)
+        }
+    }
 
     /// The last known position and when it was sampled; `position(at:)` runs it forward.
     public private(set) var timeAnchor = TimeAnchor(position: 0, date: .distantPast, rate: 0)
@@ -92,6 +99,8 @@ public final class Player {
     private var timeObserver: Any?
     private var nowPlayingArtworkFor: URL?
     private var lastListenedTick: Date?
+    /// The playing song's loudness above target, kept so normalization can be switched mid-song.
+    private var currentLoudnessDb: Double?
     private var lastPersisted = Date.distantPast
 
     public init(music: YouTubeMusic, storageDirectory: URL? = nil) {
@@ -419,7 +428,12 @@ public final class Player {
 
     /// Bring loud masters down to YouTube's -14 LUFS target; quiet ones are left alone rather than boosted.
     private func applyLoudness(_ stream: ResolvedStream) {
-        guard let db = stream.loudnessDb, db > 0 else {
+        applyLoudness(stream.loudnessDb)
+    }
+
+    private func applyLoudness(_ loudnessDb: Double?) {
+        currentLoudnessDb = loudnessDb
+        guard normalizesVolume, let db = loudnessDb, db > 0 else {
             avPlayer.volume = 1
             return
         }
@@ -810,13 +824,17 @@ public final class Player {
 
     private func persistSettings() {
         UserDefaults.standard.set(autoplay, forKey: "koda.autoplay")
+        UserDefaults.standard.set(normalizesVolume, forKey: "koda.normalizeVolume")
     }
 
     /// The last queue comes back paused; nothing loads until play is pressed.
     private func restore() {
-        if UserDefaults.standard.object(forKey: "koda.autoplay") != nil {
-            autoplay = UserDefaults.standard.bool(forKey: "koda.autoplay")
-        }
+        // Both are read before either is set: setting one saves both.
+        let defaults = UserDefaults.standard
+        let savedAutoplay = defaults.object(forKey: "koda.autoplay") as? Bool
+        let savedNormalize = defaults.object(forKey: "koda.normalizeVolume") as? Bool
+        if let savedAutoplay { autoplay = savedAutoplay }
+        if let savedNormalize { normalizesVolume = savedNormalize }
         guard let queueFile, let data = try? Data(contentsOf: queueFile),
               let saved = try? JSONDecoder().decode(Saved.self, from: data), saved.queue.current != nil else { return }
         queue = saved.queue

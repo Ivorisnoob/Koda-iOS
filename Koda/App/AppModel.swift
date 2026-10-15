@@ -12,6 +12,7 @@ final class AppModel {
     let lyrics = LyricsClient()
     let sleepTimer: SleepTimer
     let profile: Profile
+    let settings = AppSettings()
 
     var isNowPlayingPresented = false
     /// Set to switch tabs from anywhere, e.g. "Go to artist" inside Now Playing.
@@ -36,8 +37,13 @@ final class AppModel {
         library = Library(directory: directory)
         sleepTimer = SleepTimer(player: player)
         profile = Profile(directory: directory)
-        player.onSongStarted = { [library] song in library.recordPlay(song) }
-        player.onListened = { [library] song, seconds in library.addListening(seconds, to: song) }
+        let settings = settings
+        player.onSongStarted = { [library] song in
+            if settings.savesListeningHistory { library.recordPlay(song) }
+        }
+        player.onListened = { [library] song, seconds in
+            if settings.savesListeningHistory { library.addListening(seconds, to: song) }
+        }
         player.artworkLoader = { @MainActor url in
             guard let image = await ImagePipeline.shared.image(url, pixels: 600) else { return nil }
             return ImagePipeline.nowPlayingArtwork(image)

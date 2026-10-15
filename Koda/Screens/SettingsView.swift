@@ -1,40 +1,85 @@
 import KodaCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
+    @Environment(AppModel.self) private var app
     @Environment(Player.self) private var player
     @Environment(Library.self) private var library
     @Environment(\.dismiss) private var dismiss
-    @State private var confirmClear = false
 
     var body: some View {
         @Bindable var player = player
+        @Bindable var settings = app.settings
         NavigationStack {
             Form {
                 Section {
                     Toggle(isOn: $player.autoplay) {
-                        Label("Autoplay", systemImage: "infinity")
+                        SettingLabel("Autoplay", systemImage: "infinity", tint: .indigo)
                     }
+                    Toggle(isOn: $player.normalizesVolume) {
+                        SettingLabel("Normalize Volume", systemImage: "speaker.wave.2.fill", tint: .pink)
+                    }
+                } header: {
+                    Text("Playback")
                 } footer: {
-                    Text("When the queue ends, keep playing songs like the last one.")
+                    Text("Autoplay keeps the music going with songs like the last one when the queue ends. Normalize Volume plays loud masters at a similar level to everything else.")
                 }
+
                 Section {
-                    Button("Clear Listening History", role: .destructive) { confirmClear = true }
-                        .disabled(library.recent.isEmpty)
-                    Button("Clear Search History", role: .destructive) { library.clearSearches() }
-                        .disabled(library.searches.isEmpty)
+                    NavigationLink {
+                        LyricsSettingsView()
+                    } label: {
+                        SettingLabel("Lyrics", systemImage: "quote.bubble.fill", tint: .purple)
+                    }
+                    Picker(selection: $settings.theme) {
+                        ForEach(AppSettings.Theme.allCases) { Text($0.title).tag($0) }
+                    } label: {
+                        SettingLabel("Appearance", systemImage: "circle.lefthalf.filled", tint: .blue)
+                    }
+                    Toggle(isOn: $settings.animatesPlayerBackground) {
+                        SettingLabel("Moving Player Colours", systemImage: "wand.and.stars", tint: .orange)
+                    }
+                } header: {
+                    Text("Look and Feel")
                 } footer: {
-                    Text("Your library and history stay on this iPhone.")
+                    Text("The colours of the playing song's cover drift behind Now Playing. Turned off, they hold still. They always hold still with Reduce Motion on.")
                 }
+
+                Section {
+                    NavigationLink {
+                        PrivacySettingsView()
+                    } label: {
+                        SettingLabel("History and Privacy", systemImage: "hand.raised.fill", tint: .teal)
+                    }
+                    NavigationLink {
+                        StorageSettingsView()
+                    } label: {
+                        SettingLabel("Storage", systemImage: "internaldrive.fill", tint: .gray)
+                    }
+                    NavigationLink {
+                        BackupSettingsView()
+                    } label: {
+                        SettingLabel("Back Up and Restore", systemImage: "arrow.up.doc.fill", tint: .green)
+                    }
+                } header: {
+                    Text("Your Data")
+                } footer: {
+                    Text("Your library, history and stats stay on this iPhone.")
+                }
+
                 Section {
                     LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")
                     Link(destination: URL(string: "https://github.com/Ivorisnoob/Koda-iOS")!) {
                         Label("Koda on GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
                     }
+                    Link(destination: URL(string: "https://github.com/Ivorisnoob/Koda")!) {
+                        Label("Koda for Android", systemImage: "iphone.gen3")
+                    }
                 } header: {
                     Text("About")
                 } footer: {
-                    Text("Koda is an unofficial client and is not affiliated with YouTube or Google.")
+                    Text("Koda is an unofficial client and is not affiliated with YouTube or Google. Lyrics come from YouLyPlus, BetterLyrics and LRCLIB.")
                 }
             }
             .navigationTitle("Settings")
@@ -44,11 +89,276 @@ struct SettingsView: View {
                     Button("Done", systemImage: "checkmark") { dismiss() }
                 }
             }
-            .confirmationDialog("Clear your listening history?", isPresented: $confirmClear, titleVisibility: .visible) {
-                Button("Clear History", role: .destructive) { library.clearHistory() }
-            } message: {
-                Text("Recently played and Quick picks start over.")
+        }
+    }
+}
+
+/// A setting's name beside a coloured symbol tile, as the Settings app draws them.
+struct SettingLabel: View {
+    let title: String
+    let systemImage: String
+    let tint: Color
+
+    init(_ title: String, systemImage: String, tint: Color) {
+        self.title = title
+        self.systemImage = systemImage
+        self.tint = tint
+    }
+
+    var body: some View {
+        Label {
+            Text(title)
+        } icon: {
+            Image(systemName: systemImage)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 29, height: 29)
+                .background(tint.gradient, in: .rect(cornerRadius: 7, style: .continuous))
+        }
+    }
+}
+
+// MARK: - Lyrics
+
+struct LyricsSettingsView: View {
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        @Bindable var settings = app.settings
+        Form {
+            Section {
+                ForEach(settings.lyricsSourceOrder) { source in
+                    Toggle(isOn: Binding(get: { settings.isEnabled(source) }, set: { settings.setEnabled(source, $0) })) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(source.title)
+                            Text(source.detail).font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                    .disabled(settings.isEnabled(source) && settings.lyricsSources.count == 1)
+                }
+                .onMove { settings.lyricsSourceOrder.move(fromOffsets: $0, toOffset: $1) }
+            } header: {
+                Text("Sources")
+            } footer: {
+                Text("Koda asks every source at once. Word-by-word lyrics win; among equals, the higher source wins. Drag to reorder. At least one source stays on.")
             }
+
+            Section {
+                Picker("Text Size", selection: $settings.lyricsSize) {
+                    ForEach(AppSettings.LyricsSize.allCases) { Text($0.title).tag($0) }
+                }
+                Toggle("Word Motion", isOn: $settings.lyricsMotion)
+                Toggle("Backing Vocals", isOn: $settings.showsBackingVocals)
+            } header: {
+                Text("Display")
+            } footer: {
+                Text("Word Motion lifts each word as it is sung and lets long notes swell. Backing vocals appear smaller under their line.")
+            }
+
+            Section {
+                Button("Look Up Lyrics Again") {
+                    Task { await app.lyrics.clearCache() }
+                }
+            } footer: {
+                Text("Lyrics found earlier are kept until Koda closes. This forgets them, so the next song you open asks the sources again.")
+            }
+        }
+        .environment(\.editMode, .constant(.active))
+        .navigationTitle("Lyrics")
+    }
+}
+
+// MARK: - History and privacy
+
+struct PrivacySettingsView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(Library.self) private var library
+    @State private var confirm: Confirmation?
+
+    private enum Confirmation: Identifiable {
+        case history, searches, stats
+        var id: Self { self }
+    }
+
+    var body: some View {
+        @Bindable var settings = app.settings
+        Form {
+            Section {
+                Toggle("Save Listening History", isOn: $settings.savesListeningHistory)
+                Toggle("Save Search History", isOn: $settings.savesSearchHistory)
+            } footer: {
+                Text("With listening history off, songs you play aren't added to Recently Played, Quick picks, Your Mix or your stats. What is already saved stays until you clear it.")
+            }
+            Section {
+                Button("Clear Listening History", role: .destructive) { confirm = .history }
+                    .disabled(library.recent.isEmpty)
+                Button("Clear Search History", role: .destructive) { confirm = .searches }
+                    .disabled(library.searches.isEmpty)
+                Button("Reset Listening Stats", role: .destructive) { confirm = .stats }
+                    .disabled(library.songStats.isEmpty)
+            }
+        }
+        .navigationTitle("History and Privacy")
+        .confirmationDialog(title, isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } }), titleVisibility: .visible,
+                            presenting: confirm) { item in
+            Button(buttonTitle(item), role: .destructive) {
+                switch item {
+                case .history: library.clearHistory()
+                case .searches: library.clearSearches()
+                case .stats: library.clearStats()
+                }
+            }
+        } message: { item in
+            Text(message(item))
+        }
+    }
+
+    private var title: String {
+        switch confirm {
+        case .history: "Clear your listening history?"
+        case .searches: "Clear your search history?"
+        case .stats: "Reset your listening stats?"
+        case nil: ""
+        }
+    }
+
+    private func buttonTitle(_ item: Confirmation) -> String {
+        switch item {
+        case .history: "Clear History"
+        case .searches: "Clear Searches"
+        case .stats: "Reset Stats"
+        }
+    }
+
+    private func message(_ item: Confirmation) -> String {
+        switch item {
+        case .history: "Recently Played and Quick picks start over. Liked songs and stats stay."
+        case .searches: "Recent searches are removed."
+        case .stats: "Play counts, listening time and streaks start over. Liked songs and history stay."
+        }
+    }
+}
+
+// MARK: - Storage
+
+struct StorageSettingsView: View {
+    @State private var artworkBytes: Int?
+    @State private var cleared = 0
+
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent("Artwork") {
+                    if let artworkBytes {
+                        Text(artworkBytes.formatted(.byteCount(style: .file)))
+                            .contentTransition(.numericText())
+                    } else {
+                        ProgressView()
+                    }
+                }
+                Button("Clear Artwork Cache", role: .destructive) {
+                    Task {
+                        await ImagePipeline.shared.clear()
+                        cleared += 1
+                        await measure()
+                    }
+                }
+                .disabled((artworkBytes ?? 0) == 0)
+            } footer: {
+                Text("Covers are kept so pages open quickly and work with a weak connection. Cleared, they download again as you browse. Koda never keeps more than 300 MB.")
+            }
+        }
+        .navigationTitle("Storage")
+        .sensoryFeedback(.success, trigger: cleared)
+        .task { await measure() }
+    }
+
+    private func measure() async {
+        let bytes = await ImagePipeline.shared.diskUsage()
+        withAnimation { artworkBytes = bytes }
+    }
+}
+
+// MARK: - Backup
+
+/// A library backup as a file for the share sheet and Files.
+struct LibraryBackupDocument: FileDocument {
+    static let readableContentTypes: [UTType] = [.json]
+    var data: Data
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
+
+struct BackupSettingsView: View {
+    @Environment(Library.self) private var library
+    @State private var exportDocument: LibraryBackupDocument?
+    @State private var importing = false
+    @State private var pendingRestore: Data?
+    @State private var outcome: String?
+
+    var body: some View {
+        Form {
+            Section {
+                Button {
+                    if let data = library.backupData() { exportDocument = LibraryBackupDocument(data: data) }
+                } label: {
+                    Label("Back Up Library", systemImage: "square.and.arrow.up")
+                }
+            } footer: {
+                Text("Saves liked songs, playlists you made, saved albums, playlists and artists, history, stats and lyric timings to one file you can keep in Files or iCloud Drive.")
+            }
+            Section {
+                Button {
+                    importing = true
+                } label: {
+                    Label("Restore from Backup", systemImage: "square.and.arrow.down")
+                }
+            } footer: {
+                Text("Replaces everything in your library with what the backup holds.")
+            }
+        }
+        .navigationTitle("Back Up and Restore")
+        .fileExporter(isPresented: Binding(get: { exportDocument != nil }, set: { if !$0 { exportDocument = nil } }),
+                      document: exportDocument, contentType: .json,
+                      defaultFilename: "Koda Library \(Date().formatted(.iso8601.year().month().day()))") { result in
+            if case .success = result { outcome = "Your library is backed up." }
+        }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
+            guard case .success(let url) = result else { return }
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            if let data = try? Data(contentsOf: url) {
+                pendingRestore = data
+            } else {
+                outcome = "Koda couldn't read that file."
+            }
+        }
+        .confirmationDialog("Replace your library with this backup?", isPresented: Binding(get: { pendingRestore != nil }, set: { if !$0 { pendingRestore = nil } }),
+                            titleVisibility: .visible) {
+            Button("Replace Library", role: .destructive) {
+                guard let data = pendingRestore else { return }
+                do {
+                    try library.restore(from: data)
+                    outcome = "Your library is restored."
+                } catch {
+                    outcome = error.localizedDescription
+                }
+            }
+        } message: {
+            Text("What is in your library now is replaced.")
+        }
+        .alert(outcome ?? "", isPresented: Binding(get: { outcome != nil }, set: { if !$0 { outcome = nil } })) {
+            Button("OK", role: .cancel) {}
         }
     }
 }

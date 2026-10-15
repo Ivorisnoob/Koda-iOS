@@ -151,3 +151,47 @@ enum SongSort: String, CaseIterable, Identifiable {
         }
     }
 }
+
+/// A list of songs the app put together, with play and shuffle.
+struct SongListView: View {
+    let title: String
+    let subtitle: String?
+    let songs: [Song]
+    @Environment(Player.self) private var player
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        List {
+            VStack(alignment: .leading, spacing: 14) {
+                if let subtitle {
+                    Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
+                }
+                PlayShuffleButtons(play: { player.play(songs) }, shuffle: {
+                    player.play(songs, startAt: Int.random(in: 0..<max(songs.count, 1)), shuffled: true)
+                })
+            }
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
+                SongRow(song: song) { player.play(songs, startAt: index) }
+                    .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 12))
+                    .swipeActions(edge: .leading) {
+                        Button("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward") { player.playNext([song]) }
+                            .tint(.indigo)
+                    }
+                    .swipeActions(edge: .trailing) {
+                        Button("Add to Queue", systemImage: "text.line.last.and.arrowtriangle.forward") { player.addToQueue([song]) }
+                            .tint(.orange)
+                    }
+            }
+        }
+        .listStyle(.plain)
+        .navigationTitle(title)
+        .toolbar {
+            Menu("More", systemImage: "ellipsis") {
+                Button("Add to Queue", systemImage: "text.line.last.and.arrowtriangle.forward") { player.addToQueue(songs) }
+                Button("Add to Playlist…", systemImage: "text.badge.plus") { app.addToPlaylist(songs) }
+            }
+        }
+    }
+}

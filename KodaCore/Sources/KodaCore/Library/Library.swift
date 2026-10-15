@@ -279,6 +279,10 @@ public final class Library {
     private func load() {
         guard let file, let data = try? Data(contentsOf: file),
               let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data) else { return }
+        apply(snapshot)
+    }
+
+    private func apply(_ snapshot: Snapshot) {
         liked = snapshot.liked
         albums = snapshot.albums
         playlists = snapshot.playlists
@@ -294,6 +298,11 @@ public final class Library {
     private func save() {
         hasUnsavedListening = false
         guard let file else { return }
+        guard let data = try? JSONEncoder().encode(snapshot()) else { return }
+        try? data.write(to: file, options: .atomic)
+    }
+
+    private func snapshot() -> Snapshot {
         var snapshot = Snapshot()
         snapshot.liked = liked
         snapshot.albums = albums
@@ -305,8 +314,43 @@ public final class Library {
         snapshot.songStats = songStats
         snapshot.dailyListening = dailyListening
         snapshot.lyricsOffsets = lyricsOffsets
-        guard let data = try? JSONEncoder().encode(snapshot) else { return }
-        try? data.write(to: file, options: .atomic)
+        return snapshot
+    }
+
+    // MARK: Backup
+
+    public enum BackupError: LocalizedError {
+        case notABackup
+
+        public var errorDescription: String? { "This file isn't a Koda library backup." }
+    }
+
+    private static let backupFormat = "koda-ios-library"
+
+    private struct Backup: Codable {
+        var format: String
+        var version: Int
+        var exported: Date
+        var library: Snapshot
+    }
+
+    /// Everything in the library as one JSON file, for keeping or moving to another phone.
+    public func backupData(at date: Date = Date()) -> Data? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        return try? encoder.encode(Backup(format: Self.backupFormat, version: 1, exported: date, library: snapshot()))
+    }
+
+    /// Replace the library with a backup. Nothing changes unless the whole file reads as one.
+    public func restore(from data: Data) throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let backup = try? decoder.decode(Backup.self, from: data), backup.format == Self.backupFormat else {
+            throw BackupError.notABackup
+        }
+        apply(backup.library)
+        save()
     }
 }
 

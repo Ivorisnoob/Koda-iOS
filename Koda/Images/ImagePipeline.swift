@@ -24,6 +24,17 @@ actor ImagePipeline {
         memory.totalCostLimit = 80 << 20
     }
 
+    /// Bytes of artwork kept on disk.
+    func diskUsage() -> Int {
+        session.configuration.urlCache?.currentDiskUsage ?? 0
+    }
+
+    /// Forget every downloaded cover; they download again as they are shown.
+    func clear() {
+        session.configuration.urlCache?.removeAllCachedResponses()
+        memory.removeAllObjects()
+    }
+
     /// A cached image, without waiting; for the first frame of a view.
     nonisolated func cached(_ url: URL, pixels: Int) -> UIImage? {
         memory.object(forKey: Self.key(url, pixels) as NSString)
