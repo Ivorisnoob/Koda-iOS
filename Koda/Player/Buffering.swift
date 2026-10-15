@@ -26,6 +26,7 @@ struct Sheen: ViewModifier {
     var period: Double = 1.6
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    @ViewBuilder
     func body(content: Content) -> some View {
         content.overlay {
             if isActive {
@@ -54,5 +55,31 @@ struct Sheen: ViewModifier {
 extension View {
     func sheen(_ isActive: Bool, period: Double = 1.6) -> some View {
         modifier(Sheen(isActive: isActive, period: period))
+    }
+}
+
+/// Placeholders breathe gently while content loads, the way the system's own
+/// apps show it; they hold still with Reduce Motion on.
+struct PlaceholderPulse: ViewModifier {
+    var isActive: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isActive && !reduceMotion {
+            content.phaseAnimator([false, true]) { view, dim in
+                view.opacity(dim ? 0.5 : 1)
+            } animation: { _ in
+                .easeInOut(duration: 0.9)
+            }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func placeholderPulse(_ isActive: Bool = true) -> some View {
+        modifier(PlaceholderPulse(isActive: isActive))
     }
 }

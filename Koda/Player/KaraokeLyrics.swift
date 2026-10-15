@@ -67,7 +67,10 @@ struct SyncedLyrics: View {
                             }
                         }
                     }
-                    .padding(.vertical, 140)
+                    // The first line starts right under the song; the room below lets the
+                    // last lines still reach the reading position a third of the way down.
+                    .padding(.top, 12)
+                    .padding(.bottom, 380)
                     .padding(.horizontal, SyncedLyrics.bleed)
                     .animation(.spring(response: 0.5, dampingFraction: 0.85), value: current)
                     .animation(.spring(response: 0.45, dampingFraction: 0.8), value: interlude?.after)
@@ -179,7 +182,7 @@ struct LyricRow: View {
     nonisolated static let defaultFontSize: CGFloat = 30
     private var style: LyricsStyle { LyricsStyle(app.settings) }
     /// Where the line sits: every line on the left unless Duet Sides is on.
-    private var voice: LyricVoice { style.duetSides ? line.voice : .lead }
+    private var voice: LyricVoice { style.duetSides && line.voice == .duet ? .duet : .lead }
 
     private var alignment: HorizontalAlignment {
         switch voice {
@@ -406,13 +409,12 @@ struct LyricsLoading: View {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
                         .fill(.white.opacity(0.14))
                         .frame(width: geometry.size.width * fraction)
-                        .sheen(true, period: 1.8)
-                        .clipShape(.rect(cornerRadius: 9, style: .continuous))
                 }
                 .frame(height: 26)
             }
         }
-        .padding(.top, 60)
+        .padding(.top, 16)
+        .placeholderPulse()
         .frame(maxHeight: .infinity, alignment: .top)
         .accessibilityLabel("Loading lyrics")
     }

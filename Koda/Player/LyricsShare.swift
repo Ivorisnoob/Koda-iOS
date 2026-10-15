@@ -34,6 +34,8 @@ struct LyricsShareSheet: View {
     @State private var palette = PaletteModel()
     @State private var rendered: UIImage?
     @State private var limitHit = 0
+    /// The card's natural height at preview width, measured as it lays out.
+    @State private var cardHeight: CGFloat = 0
 
     static let maxLines = 6
 
@@ -48,15 +50,9 @@ struct LyricsShareSheet: View {
 
     var body: some View {
         NavigationStack {
+            GeometryReader { geometry in
             VStack(spacing: 18) {
-                LyricsCard(lines: chosen.map(\.text), song: song, cover: cover, palette: palette.palette, style: style)
-                    .frame(width: 300)
-                    .shadow(color: .black.opacity(0.4), radius: 24, y: 14)
-                    .padding(.top, 8)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.82), value: selected)
-                    .animation(.smooth(duration: 0.3), value: style)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Card preview")
+                preview(maxHeight: geometry.size.height * 0.42)
 
                 stylePicker
 
@@ -67,6 +63,7 @@ struct LyricsShareSheet: View {
                     .animation(.smooth, value: selected.count >= Self.maxLines)
 
                 linePicker
+            }
             }
             .background { backdrop }
             .navigationTitle("Share Lyrics")
@@ -93,6 +90,25 @@ struct LyricsShareSheet: View {
     }
 
     // MARK: Parts
+
+    /// The card as it will look, shrunk to fit its share of the sheet: however many long
+    /// lines are chosen, the list under it keeps its room and stays scrollable.
+    private func preview(maxHeight: CGFloat) -> some View {
+        let scale = cardHeight > maxHeight ? maxHeight / cardHeight : 1
+        return LyricsCard(lines: chosen.map(\.text), song: song, cover: cover, palette: palette.palette, style: style)
+            .frame(width: 300)
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeight = $0 }
+            .scaleEffect(scale, anchor: .top)
+            .frame(height: cardHeight > 0 ? cardHeight * scale : nil, alignment: .top)
+            .shadow(color: .black.opacity(0.4), radius: 24, y: 14)
+            .padding(.top, 8)
+            .animation(.spring(response: 0.4, dampingFraction: 0.82), value: selected)
+            .animation(.spring(response: 0.4, dampingFraction: 0.82), value: scale)
+            .animation(.smooth(duration: 0.3), value: style)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Card preview")
+    }
 
     /// The song's colours behind the whole sheet, so it feels like part of the player.
     private var backdrop: some View {

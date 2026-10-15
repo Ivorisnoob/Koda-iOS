@@ -154,7 +154,7 @@ struct LyricsSettingsView: View {
             } header: {
                 Text("Display")
             } footer: {
-                Text("Word Motion lifts each word as it is sung and lets long notes swell. Backing vocals appear smaller under their line. Duet Sides puts the second singer's lines on the right and lines sung together in the middle.")
+                Text("Word Motion lifts each word as it is sung and lets long notes swell. Backing vocals appear smaller under their line. Duet Sides puts the second singer's lines on the right.")
             }
 
             Section {

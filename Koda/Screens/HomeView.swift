@@ -210,8 +210,7 @@ struct HomeView: View {
             RoundedRectangle(cornerRadius: 32, style: .continuous)
                 .fill(.quaternary)
                 .frame(height: 340)
-                .sheen(true)
-                .clipShape(.rect(cornerRadius: 32, style: .continuous))
+                .placeholderPulse()
                 .padding(.horizontal, 20)
         }
 
@@ -572,7 +571,7 @@ private struct HomeSkeleton: View {
             }
             .padding(.horizontal, 20)
         }
-        .sheen(true, period: 1.8)
+        .placeholderPulse()
         .padding(.top, 4)
         .accessibilityLabel("Loading")
     }

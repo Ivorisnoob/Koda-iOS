@@ -62,8 +62,7 @@ struct ArtistView: View {
                     if name.isEmpty {
                         // Opened from a link, the name comes with the page.
                         Capsule().fill(.white.opacity(0.25)).frame(width: 180, height: 34)
-                            .sheen(true)
-                            .clipShape(.capsule)
+                            .placeholderPulse()
                     } else {
                         Text(name)
                             .font(.system(size: 40, weight: .bold))
@@ -209,7 +208,7 @@ private struct ArtistHeroImage: View {
             }
         }
         .frame(width: width, height: height)
-        .sheen(image == nil, period: 1.8)
+        .placeholderPulse(image == nil && previewImage == nil)
         .clipped()
         .task(id: preview?.url) {
             guard let url = preview?.url(pixels: 120), image == nil else { return }
@@ -258,7 +257,7 @@ private struct ArtistSkeleton: View {
             }
         }
         .padding(.horizontal, 20)
-        .sheen(true, period: 1.8)
+        .placeholderPulse()
         .accessibilityLabel("Loading")
     }
 }
