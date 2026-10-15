@@ -61,7 +61,11 @@ final class SearchModel {
 struct SearchView: View {
     @Environment(AppModel.self) private var app
     @Environment(Library.self) private var library
+    @Environment(Player.self) private var player
     @State private var model = SearchModel()
+    @State private var listening = false
+    /// Music playing when voice search began, to pick up again after it.
+    @State private var resumeAfterVoice = false
 
     var body: some View {
         @Bindable var model = model
@@ -79,6 +83,24 @@ struct SearchView: View {
         .onSubmit(of: .search) { submit(model.query) }
         .onChange(of: model.query) { _, text in
             if text.isEmpty { model.clear() }
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Search by Voice", systemImage: "mic") {
+                    resumeAfterVoice = player.wantsToPlay
+                    if resumeAfterVoice { player.pause() }
+                    listening = true
+                }
+            }
+        }
+        .sheet(isPresented: $listening, onDismiss: {
+            if resumeAfterVoice { player.resume() }
+            resumeAfterVoice = false
+        }) {
+            VoiceSearchSheet { text in
+                model.query = text
+                submit(text)
+            }
         }
         .task(id: model.query) { await model.suggest(music: app.music) }
         .task { await model.loadMoods(music: app.music) }

@@ -13,6 +13,13 @@ struct SyncedLyrics: View {
     @Environment(Player.self) private var player
     @Environment(Library.self) private var library
     @State private var userScrolled = false
+    @State private var shareFrom: ShareStart?
+
+    private struct ShareStart: Identifiable {
+        let line: Int
+        let song: Song
+        var id: Int { line }
+    }
 
     /// The listener's correction for this song; positive shows each line later.
     private var offset: TimeInterval { player.current.map { library.lyricsOffset(for: $0.id) } ?? 0 }
@@ -43,6 +50,17 @@ struct SyncedLyrics: View {
                                 .onTapGesture {
                                     player.seek(to: max(0, line.time + offset))
                                     userScrolled = false
+                                }
+                                .contextMenu {
+                                    if let song = player.current, !line.text.isEmpty {
+                                        Button("Share Lyrics…", systemImage: "square.and.arrow.up") {
+                                            shareFrom = ShareStart(line: line.id, song: song)
+                                        }
+                                        Button("Play from Here", systemImage: "play") {
+                                            player.seek(to: max(0, line.time + offset))
+                                            userScrolled = false
+                                        }
+                                    }
                                 }
                             if let interlude, interlude.after == line.id {
                                 InterludeDots(interlude: interlude).id("interlude")
@@ -95,6 +113,10 @@ struct SyncedLyrics: View {
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: userScrolled)
+        .sheet(item: $shareFrom) { start in
+            LyricsShareSheet(lines: lines, song: start.song, startingAt: start.line)
+                .environment(\.colorScheme, .dark)
+        }
     }
 }
 
