@@ -84,6 +84,10 @@ func fixture(_ name: String) throws -> JSON {
         #expect(page.artist.name == "The Weeknd")
         #expect(page.artist.subtitle == "238M monthly audience")
         #expect(page.topSongs.count == 5)
+        // Artist, plays and album sit in separate columns with no dot between them.
+        #expect(page.topSongs[0].artistLine == "The Weeknd, JENNIE & Lily Rose Depp")
+        #expect(page.topSongs[1].artistLine == "The Weeknd")
+        #expect(page.topSongs[1].album?.title == "After Hours")
         #expect(page.allSongsPlaylistId?.hasPrefix("OLAK5uy_") == true)
         #expect(page.albums.first?.title == "Hurry Up Tomorrow")
         #expect(page.albums.allSatisfy { $0.kind == .album && $0.artistLine == "The Weeknd" })
