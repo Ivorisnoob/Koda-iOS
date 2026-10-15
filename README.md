@@ -35,7 +35,14 @@ A free Apple ID's signature lasts seven days; AltStore and SideStore renew it fo
 
 ## On the Mac
 
-Koda also runs on the Mac, as one app for Apple silicon and Intel, with a sidebar, a player bar and the menu bar's Controls. It needs macOS 26 or later.
+Koda also runs on the Mac, as one app for Apple silicon and Intel, built for the Mac rather than stretched from the phone. It needs macOS 26 or later.
+
+- A sidebar of Home, Browse, your library and your playlists, with search in it, and Up Next and today's listening at its foot
+- Albums and playlists with the cover beside the details and the songs in columns; double-click to play
+- A player bar under every page; Now Playing opens out of its cover, with lyrics or the queue beside the cover in a wide window
+- Add to Playlist as a submenu of your playlists, as in Music
+- Settings in a window of its own, laid out like System Settings
+- Each section remembers where you were, and pages you've just seen open at once
 
 Builds of `Koda.dmg` come from [GitHub Actions](https://github.com/Ivorisnoob/Koda-iOS/actions): open the newest run and download **Koda-mac** under Artifacts. Open the disk image and drag Koda into Applications.
 
@@ -52,7 +59,9 @@ xattr -dr com.apple.quarantine /Applications/Koda.app
 | ⌘↑ / ⌘↓ | Volume up / down |
 | ⇧⌘P | Show or hide Now Playing |
 | ⇧⌘L / ⇧⌘U | Lyrics / queue |
+| Esc | Close Now Playing |
 | ⌘1 / ⌘2 / ⌘F | Home / Library / Search |
+| ⌘R | Refresh Home or Last.fm |
 | ⌘, | Settings |
 
 ## Features
@@ -60,7 +69,8 @@ xattr -dr com.apple.quarantine /Applications/Koda.app
 ### Listening
 
 - **Your Mix** on Home, woven from radios of the artists you play most, with recent listening counting more
-- **Jump back in**, **Quick picks**, your top artists, new releases and YouTube Music's own shelves
+- **Jump back in**, **Quick picks** and your top artists, all from what you play
+- One row of **Charts**: global, then your region, then its genres or languages
 - Gapless playback that keeps going in the background, with lock screen, Control Center and AirPlay
 - Shuffle, repeat, autoplay radio and a queue you can drag to reorder
 - Swipe the mini player left or right to skip; a sleep timer for a set time or the end of the song
@@ -84,7 +94,7 @@ xattr -dr com.apple.quarantine /Applications/Koda.app
 
 - Liked songs, saved albums, playlists and artists, and playlists of your own
 - A profile with listening stats: time listened each day, streaks, top songs and artists
-- Back up the whole library to one file and restore it on another iPhone
+- Back up the whole library to one file and restore it on another iPhone or a Mac
 - Pause listening or search history whenever you like
 
 ### Last.fm
@@ -102,15 +112,17 @@ Koda has no account, no analytics and no server of its own. What you like, save,
 
 ## Building
 
-Xcode 26 or later.
+Xcode 26 or later. Notes on how parts of Koda work, and why, are in [`docs/`](docs).
 
 ```sh
 cd KodaCore && swift test                          # unit tests
 KODA_LIVE=1 swift test --filter Live               # against live YouTube, plays muted audio
 xcodebuild -project Koda.xcodeproj -scheme Koda -destination 'generic/platform=iOS' build
+xcodebuild -project Koda.xcodeproj -scheme Koda -destination 'generic/platform=macOS,variant=Mac Catalyst' \
+  ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual build
 ```
 
-Every push runs the tests and builds an unsigned `Koda.ipa` on GitHub Actions; it is in the run's artifacts.
+Every push to `main` or `beta` runs the tests and builds an unsigned `Koda.ipa` and a universal, ad-hoc signed `Koda.dmg` on GitHub Actions; both are in the run's artifacts.
 
 | Path | What |
 |---|---|
