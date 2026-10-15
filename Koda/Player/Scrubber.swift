@@ -87,6 +87,9 @@ struct VolumeSlider: View {
                     Capsule().fill(.white.opacity(0.25))
                     Capsule().fill(.white.opacity(dragging ? 1 : 0.85))
                         .frame(width: max(0, width * CGFloat(volume.level)))
+                        // Changes from the volume buttons ease in with the system's smooth spring;
+                        // under the finger the bar follows directly, with no lag.
+                        .animation(dragging ? nil : .smooth, value: volume.level)
                 }
                 .frame(height: dragging ? 12 : 6)
                 .frame(maxHeight: .infinity)
@@ -100,7 +103,7 @@ struct VolumeSlider: View {
                         .onEnded { _ in dragging = false })
             }
             .frame(height: 24)
-            .animation(.spring(response: 0.3, dampingFraction: 0.75), value: dragging)
+            .animation(.smooth, value: dragging)
             Image(systemName: "speaker.wave.3.fill")
                 .font(.caption)
                 .accessibilityHidden(true)
