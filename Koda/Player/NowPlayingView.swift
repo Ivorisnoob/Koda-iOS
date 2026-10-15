@@ -23,6 +23,12 @@ struct NowPlayingView: View {
             MeshBackground(palette: app.nowPlayingPalette.palette, isAnimating: player.wantsToPlay && app.settings.animatesPlayerBackground)
             if isWide { wideLayout } else { tallLayout }
         }
+        // Escape closes the player, in either layout, as it closes a full view anywhere on the Mac.
+        .background {
+            Button("Close") { close() }
+                .keyboardShortcut(.cancelAction)
+                .hidden()
+        }
         .onGeometryChange(for: Bool.self) { $0.size.width >= 900 && $0.size.height >= 560 } action: { isWide = $0 }
         .foregroundStyle(.white)
         .environment(\.colorScheme, .dark)
@@ -117,12 +123,6 @@ struct NowPlayingView: View {
             .padding(.horizontal, 48)
             .padding(.bottom, 16)
         }
-        // Escape closes the player, as it closes any full-window view on the Mac.
-        .background {
-            Button("Close") { close() }
-                .keyboardShortcut(.cancelAction)
-                .hidden()
-        }
     }
 
     /// Presented, it dismisses; on the Mac, where it is a layer of the window, the window closes it.
@@ -135,14 +135,19 @@ struct NowPlayingView: View {
 
     private var topBar: some View {
         HStack {
-            Button { close() } label: {
-                Image(systemName: "chevron.down")
-                    .font(.body.weight(.semibold))
-                    .frame(width: 44, height: 44)
+            if Platform.isMac {
+                // A page on the Mac: the toolbar's back button and Esc close it.
+                Color.clear.frame(width: 44, height: 44)
+            } else {
+                Button { close() } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .accessibilityLabel("Close")
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .accessibilityLabel("Close")
             Spacer()
             if app.sleepTimer.isActive {
                 SleepTimerPill()

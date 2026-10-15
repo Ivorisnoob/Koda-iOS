@@ -8,15 +8,16 @@ final class HomeModel {
         var quickPicks: [Song] = []
         var quickPicksTitle = "Quick picks"
         var shelves: [Shelf] = []
-        var newReleases: Shelf?
-        var chartArtists: [ArtistSummary] = []
+        /// YouTube Music's chart playlists: global, the listener's region, then its genres or languages.
+        /// The one row on Home that isn't built from the listener's own listening.
+        var charts: [PlaylistSummary] = []
         var trending: [Song] = []
 
         /// The shape of a loaded Home, for drawing it redacted while the real one loads.
         static let placeholder: Content = {
             var content = Content()
             content.quickPicks = Song.placeholders(8)
-            content.shelves = [Shelf(title: "Shelf title", items: (0..<6).map { .album(AlbumSummary.placeholder($0)) })]
+            content.charts = (0..<6).map { PlaylistSummary(id: "placeholder-\($0)", title: "Top 100 Chart") }
             return content
         }()
     }
@@ -45,21 +46,16 @@ final class HomeModel {
         if mix == nil { mixPending = true }
         let recent = library.recent
         let taste = Taste(library: library)
-        async let home = music.home()
-        async let explore = try? music.explore()
-        async let charts = try? music.charts()
+        // Home is the listener's own: Your Mix, Quick picks, what they go back to and play. From
+        // YouTube it takes only the charts, as one row, and trending songs for someone new.
+        async let explore = music.explore()
+        async let charts = try? music.chartPlaylists()
         async let picks = quickPicks(music: music, recent: recent)
         do {
-            let homePage = try await home
             var content = Content()
-            content.shelves = homePage.shelves
-            let explorePage = await explore
-            content.newReleases = explorePage?.shelves.first { $0.title == "New albums & singles" }
+            let explorePage = try await explore
             content.trending = trending(explorePage)
-            content.chartArtists = (await charts)?.shelves.first { $0.title == "Top artists" }?.items.compactMap {
-                if case .artist(let a) = $0 { return a }
-                return nil
-            } ?? []
+            content.charts = await charts ?? []
             let (title, songs) = await picks
             content.quickPicksTitle = title
             content.quickPicks = songs.isEmpty ? content.trending : songs
@@ -224,9 +220,6 @@ struct HomeView: View {
                 }
             }
         }
-        if let first = content.shelves.first {
-            ItemShelf(shelf: first, onPlay: play)
-        }
         let yours = model.topArtists(library)
         if yours.count >= 3 {
             ShelfView(title: "Your top artists", strapline: "Based on your listening") {
@@ -239,17 +232,13 @@ struct HomeView: View {
                 }
             }
         }
-        if let releases = content.newReleases {
-            ItemShelf(shelf: releases, onPlay: play)
-        }
-        ForEach(content.shelves.dropFirst()) { shelf in
-            ItemShelf(shelf: shelf, onPlay: play)
-        }
-        if !content.chartArtists.isEmpty {
-            ShelfView(title: "Top artists", strapline: "Charts") {
-                ForEach(content.chartArtists) { artist in
-                    NavigationLink(value: Route.artist(artist)) { ArtistCard(artist: artist) }
-                        .buttonStyle(.plain)
+        if !content.charts.isEmpty {
+            ShelfView(title: "Charts", strapline: "Global and near you") {
+                ForEach(content.charts) { chart in
+                    NavigationLink(value: Route.playlist(chart)) {
+                        CoverCard(artwork: chart.artwork, title: chart.title, subtitle: chart.subtitle)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }

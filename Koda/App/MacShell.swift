@@ -18,6 +18,8 @@ enum Platform {
 /// the middle, where the eye expects them; lyrics, queue and volume on the right.
 struct MacPlayerBar: View {
     let open: (NowPlayingView.Panel) -> Void
+    /// Where Now Playing zooms out of and back into.
+    var zoom: Namespace.ID?
     @Environment(Player.self) private var player
 
     var body: some View {
@@ -43,6 +45,7 @@ struct MacPlayerBar: View {
         Button { open(.artwork) } label: {
             HStack(spacing: 12) {
                 ArtworkView(artwork: player.current?.artwork, size: 46, cornerRadius: 8)
+                    .modifier(ZoomSource(namespace: zoom))
                     .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(player.current?.title ?? "Not Playing")
@@ -290,5 +293,18 @@ struct KodaCommands: Commands {
         }
         // One window is the whole app; a second would play over the first.
         CommandGroup(replacing: .newItem) {}
+    }
+}
+
+/// Marks the view Now Playing zooms out of, when there is a namespace to mark it in.
+private struct ZoomSource: ViewModifier {
+    let namespace: Namespace.ID?
+
+    func body(content: Content) -> some View {
+        if let namespace {
+            content.matchedTransitionSource(id: "player", in: namespace) { $0.clipShape(.rect(cornerRadius: 8)) }
+        } else {
+            content
+        }
     }
 }

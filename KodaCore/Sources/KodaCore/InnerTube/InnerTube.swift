@@ -82,10 +82,33 @@ public final class YouTubeMusic: Sendable {
         }
     }
 
-    public func charts() async throws -> ShelfPage {
-        try await pages.value("charts") { [api] in
-            Pages.shelves(try await api.music("browse", ["browseId": "FEmusic_charts"]))
+    /// YouTube Music's charts for a country, by its two-letter code ("ZZ" is global), or for
+    /// the region YouTube places the listener in when nil.
+    public func charts(country: String? = nil) async throws -> ShelfPage {
+        try await pages.value("charts|\(country ?? "")") { [api] in
+            var payload: [String: Any] = ["browseId": "FEmusic_charts"]
+            if let country { payload["formData"] = ["selectedValues": [country]] }
+            return Pages.shelves(try await api.music("browse", payload))
         }
+    }
+
+    /// One row of chart playlists, simplest first: the global charts, then the listener's
+    /// region, then its genre or language charts. Artist charts are left out.
+    public func chartPlaylists() async throws -> [PlaylistSummary] {
+        async let global = try? charts(country: "ZZ")
+        async let local = try? charts()
+        let pages = [await global, await local].compactMap { $0 }
+        guard !pages.isEmpty else { throw MusicError.network }
+        var seen = Set<String>()
+        var playlists: [PlaylistSummary] = []
+        for page in pages {
+            for shelf in page.shelves {
+                for case .playlist(let playlist) in shelf.items where seen.insert(playlist.id).inserted {
+                    playlists.append(playlist)
+                }
+            }
+        }
+        return playlists
     }
 
     public func mood(_ mood: Mood) async throws -> ShelfPage {

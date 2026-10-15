@@ -90,9 +90,6 @@ struct MacHomeView: View {
                 }
             }
         }
-        if let first = content.shelves.first {
-            MacItemShelf(shelf: first)
-        }
         let yours = model.topArtists(library)
         if yours.count >= 3 {
             MacShelf(title: "Your top artists", subtitle: "Based on your listening") {
@@ -103,17 +100,9 @@ struct MacHomeView: View {
                 }
             }
         }
-        if let releases = content.newReleases {
-            MacItemShelf(shelf: releases)
-        }
-        ForEach(content.shelves.dropFirst()) { shelf in
-            MacItemShelf(shelf: shelf)
-        }
-        if !content.chartArtists.isEmpty {
-            MacShelf(title: "Top artists", subtitle: "Charts") {
-                ForEach(content.chartArtists) { artist in
-                    MacArtistCard(artist: artist)
-                }
+        if !content.charts.isEmpty {
+            MacShelf(title: "Charts", subtitle: "Global and near you") {
+                ForEach(content.charts) { MacItemCard(item: .playlist($0)) }
             }
         }
     }

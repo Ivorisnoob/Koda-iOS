@@ -16,6 +16,8 @@ enum Route: Hashable {
     case stats
     /// Songs the app put together, such as Your Mix.
     case songList(title: String, subtitle: String?, songs: [Song])
+    /// The player, as a page of its own on the Mac, zooming out of the player bar's cover.
+    case nowPlaying
 
     enum SongSource: Hashable {
         case liked, recent, downloaded
@@ -45,7 +47,30 @@ extension View {
             case .userPlaylist(let id): UserPlaylistView(id: id)
             case .stats: StatsView()
             case .songList(let title, let subtitle, let songs): SongListView(title: title, subtitle: subtitle, songs: songs)
+            case .nowPlaying: NowPlayingPage()
             }
         }
     }
+}
+
+/// Now Playing pushed onto a page's stack, with the system's zoom out of the player bar's cover
+/// (`matchedTransitionSource` "player" in the namespace the window provides).
+struct NowPlayingPage: View {
+    @Environment(\.nowPlayingZoom) private var zoom
+
+    var body: some View {
+        if let zoom {
+            NowPlayingView()
+                .navigationTitle("Now Playing")
+                .navigationTransition(.zoom(sourceID: "player", in: zoom))
+        } else {
+            NowPlayingView()
+                .navigationTitle("Now Playing")
+        }
+    }
+}
+
+extension EnvironmentValues {
+    /// The namespace the player bar's cover is marked in, for Now Playing to zoom out of.
+    @Entry var nowPlayingZoom: Namespace.ID? = nil
 }

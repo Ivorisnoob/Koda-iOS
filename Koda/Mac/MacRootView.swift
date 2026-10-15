@@ -22,7 +22,8 @@ struct MacRootView: View {
     @State private var home = HomeModel()
     @State private var search = SearchModel()
     @FocusState private var searchFocused: Bool
-    @State private var showsNowPlaying = false
+    /// The namespace the player bar's cover is the zoom source in.
+    @Namespace private var playerZoom
     @State private var namingPlaylist = false
     @State private var draftName = ""
     @State private var renaming: UserPlaylist?
@@ -38,20 +39,10 @@ struct MacRootView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 210, ideal: 236, max: 320)
         } detail: {
-            // Now Playing takes the place of the page, beside the sidebar, the way switching
-            // sections does. The window's toolbar and its sidebar button are never changed
-            // directly: hiding them while the app ran is what left the button stuck before.
-            ZStack {
-                if showsNowPlaying {
-                    NowPlayingView()
-                        .environment(\.closeNowPlaying) { showsNowPlaying = false }
-                        .navigationTitle("Now Playing")
-                } else {
-                    page
-                }
-            }
-            // SwiftUI's own default for a view coming and going.
-            .animation(.default, value: showsNowPlaying)
+            // Now Playing is pushed onto the section's stack like any page, zooming out of the
+            // player bar's cover with the system's transition. The window's toolbar and its
+            // sidebar button are never changed directly: doing so left the button stuck before.
+            page
         }
     }
 
@@ -61,16 +52,23 @@ struct MacRootView: View {
             detail
                 .routeDestinations()
         }
+        .environment(\.nowPlayingZoom, playerZoom)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-                if player.current != nil {
-                    MacPlayerBar { panel in
-                        model.requestedPanel = panel
-                        showsNowPlaying = true
-                    }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
+            if player.current != nil {
+                // Under Now Playing the bar only repeats it, so it steps out of sight; it stays in
+                // place, as the cover the player zooms back into.
+                MacPlayerBar(open: { panel in
+                    model.requestedPanel = panel
+                    openNowPlaying()
+                }, zoom: playerZoom)
+                .opacity(showsNowPlaying ? 0 : 1)
+                .allowsHitTesting(!showsNowPlaying)
+                .accessibilityHidden(showsNowPlaying)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            .animation(.smooth(duration: 0.35), value: player.current == nil)
+        }
+        .animation(.smooth(duration: 0.35), value: player.current == nil)
+        .animation(.smooth(duration: 0.25), value: showsNowPlaying)
     }
 
     private func searching<V: View>(_ content: V) -> some View {
@@ -126,16 +124,12 @@ struct MacRootView: View {
 
     private func nowPlayingLayer<V: View>(_ content: V) -> some View {
         content
-        // Esc closes Now Playing, as it closes a full view anywhere on the Mac.
-        .background {
-            if showsNowPlaying {
-                Button("Close Now Playing") { showsNowPlaying = false }
-                    .keyboardShortcut(.cancelAction)
-                    .hidden()
-            }
+        .onChange(of: model.isNowPlayingPresented) { _, shown in
+            if shown { openNowPlaying() } else { closeNowPlaying() }
         }
-        .onChange(of: model.isNowPlayingPresented) { _, shown in showsNowPlaying = shown }
-        .onChange(of: showsNowPlaying) { _, shown in model.isNowPlayingPresented = shown }
+        .onChange(of: showsNowPlaying) { _, shown in
+            if model.isNowPlayingPresented != shown { model.isNowPlayingPresented = shown }
+        }
         .task(id: player.current?.artwork) { await model.nowPlayingPalette.load(player.current?.artwork) }
         .playlistPicker(whenOnTop: !showsNowPlaying)
         // Settings is a window of its own on the Mac; one, brought forward if it's already open.
@@ -242,7 +236,7 @@ struct MacRootView: View {
             // A click in the sidebar always lands on its page, closing Now Playing if it's open;
             // clicking the section you're in goes back to its first page, as Music's sidebar does.
             if showsNowPlaying {
-                showsNowPlaying = false
+                closeNowPlaying()
                 section = target
             } else if section == target {
                 paths[target] = []
@@ -300,6 +294,21 @@ struct MacRootView: View {
         }
     }
 
+    /// Now Playing is open: it is the top page of the section's stack.
+    private var showsNowPlaying: Bool { paths[section ?? .home]?.last == .nowPlaying }
+
+    private func openNowPlaying() {
+        guard player.current != nil, !showsNowPlaying else { return }
+        paths[section ?? .home, default: []].append(.nowPlaying)
+    }
+
+    /// Takes Now Playing off every section's stack, so no section reopens on it later.
+    private func closeNowPlaying() {
+        for key in paths.keys where paths[key]?.contains(.nowPlaying) == true {
+            paths[key]?.removeAll { $0 == .nowPlaying }
+        }
+    }
+
     private var path: Binding<[Route]> {
         let current = section ?? .home
         return Binding(get: { paths[current] ?? [] }, set: { paths[current] = $0 })
@@ -315,7 +324,7 @@ struct MacRootView: View {
         if model.settings.savesSearchHistory { library.recordSearch(text) }
         search.query = text
         paths[.search] = []
-        showsNowPlaying = false
+        closeNowPlaying()
         section = .search
         Task { await search.search(text, music: model.music) }
     }
