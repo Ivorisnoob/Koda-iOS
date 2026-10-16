@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Koda/Assets.xcassets/AppIcon.appiconset/AppIcon.png" width="120" alt="Koda icon"/>
+  <img src="docs/icon.png" width="120" alt="Koda icon"/>
 </p>
 
 <h1 align="center">Koda for iPhone</h1>

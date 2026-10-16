@@ -7,8 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		4B1D000000000000000A0001 /* KodaWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4B1D000000000000000A0000 /* KodaWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1FA79FC2307FF2300099A7C2 /* KodaCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1FA79FC1307FF2300099A7C2 /* KodaCore */; };
+		4B1D000000000000000A0001 /* KodaWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4B1D000000000000000A0000 /* KodaWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -36,8 +36,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		4B1D000000000000000A0000 /* KodaWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KodaWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1FA79FA4307FF22C0099A7C2 /* Koda.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Koda.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4B1D000000000000000A0000 /* KodaWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KodaWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
