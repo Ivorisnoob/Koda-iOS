@@ -87,6 +87,8 @@ struct SavedSongsView: View {
         switch source {
         case .recent: return library.recent
         case .downloaded: return downloads.songs
+        // Read when the page draws; downloads finishing redraw it.
+        case .offline: return downloads.store.completeSongs
         case .liked: break
         }
         let liked = library.liked
@@ -112,6 +114,7 @@ struct SavedSongsView: View {
         case .liked: ("heart.fill", .pink)
         case .recent: ("clock.fill", .orange)
         case .downloaded: ("arrow.down.circle.fill", .blue)
+        case .offline: ("airplane.circle.fill", .green)
         }
     }
 
@@ -154,7 +157,7 @@ struct SavedSongsView: View {
                         return AnyView(Button("Remove from Liked", systemImage: "heart.slash", role: .destructive) { library.toggleLike(song) })
                     case .downloaded:
                         return AnyView(Button("Remove Download", systemImage: "trash", role: .destructive) { downloads.remove([song]) })
-                    case .recent:
+                    case .recent, .offline:
                         return AnyView(EmptyView())
                     }
                 })
@@ -173,8 +176,14 @@ struct SavedSongsView: View {
         case .downloaded:
             ContentUnavailableView("No Downloads", systemImage: "arrow.down.circle",
                                    description: Text("Download songs, albums and playlists to play them without a connection."))
+        case .offline:
+            ContentUnavailableView("Nothing Ready Offline", systemImage: "airplane",
+                                   description: Text(SavedSongsView.offlineNote))
         }
     }
+
+    /// What Ready Offline holds, said where the list is.
+    static let offlineNote = "Songs you download, and songs you play all the way through while Keep Songs You Play is on, are kept on this device and play without a connection."
 
     private var phoneBody: some View {
         List {
@@ -198,7 +207,7 @@ struct SavedSongsView: View {
                             Button("Unlike", systemImage: "heart.slash", role: .destructive) { library.toggleLike(song) }
                         case .downloaded:
                             Button("Remove Download", systemImage: "trash", role: .destructive) { downloads.remove([song]) }
-                        case .recent:
+                        case .recent, .offline:
                             Button("Add to Queue", systemImage: "text.line.last.and.arrowtriangle.forward") { player.addToQueue([song]) }
                                 .tint(.orange)
                         }
@@ -216,6 +225,9 @@ struct SavedSongsView: View {
                 case .downloaded:
                     ContentUnavailableView("No Downloads", systemImage: "arrow.down.circle",
                                            description: Text("Download songs, albums and playlists to play them without a connection."))
+                case .offline:
+                    ContentUnavailableView("Nothing Ready Offline", systemImage: "airplane",
+                                           description: Text(SavedSongsView.offlineNote))
                 }
             }
         }

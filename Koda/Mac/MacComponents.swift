@@ -336,12 +336,16 @@ struct MacCollectionHeader<Cover: View, Actions: View>: View {
     @ViewBuilder var actions: () -> Actions
 
     @State private var showsDescription = false
+    @State private var width: CGFloat = 900
     @Environment(\.colorScheme) private var colorScheme
 
+    /// A narrow window keeps the cover beside the title, smaller.
+    private var coverSide: CGFloat { width < 620 ? 150 : 232 }
+
     var body: some View {
-        HStack(alignment: .bottom, spacing: 28) {
+        HStack(alignment: .bottom, spacing: width < 620 ? 20 : 28) {
             cover()
-                .frame(width: 232, height: 232)
+                .frame(width: coverSide, height: coverSide)
                 .shadow(color: .black.opacity(0.22), radius: 22, y: 12)
             VStack(alignment: .leading, spacing: 0) {
                 if let kind, !kind.isEmpty {
@@ -352,7 +356,7 @@ struct MacCollectionHeader<Cover: View, Actions: View>: View {
                         .padding(.bottom, 4)
                 }
                 Text(title)
-                    .font(.system(size: 32, weight: .bold))
+                    .font(.system(size: width < 620 ? 24 : 32, weight: .bold))
                     .lineLimit(2)
                     .minimumScaleFactor(0.7)
                     .textSelection(.enabled)
@@ -402,11 +406,12 @@ struct MacCollectionHeader<Cover: View, Actions: View>: View {
                         .disabled(!canPlay)
                     actions()
                 }
-                .padding(.top, 18)
+                .padding(.top, width < 620 ? 12 : 18)
             }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, MacMetrics.gutter)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 }
 

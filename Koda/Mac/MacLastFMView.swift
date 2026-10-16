@@ -38,15 +38,22 @@ struct MacLastFMView: View {
 private struct MacLastFMConnected: View {
     @Environment(LastFM.self) private var lastFM
     @State private var confirmsDisconnect = false
+    @State private var width: CGFloat = 1000
 
     var body: some View {
-        HStack(alignment: .top, spacing: 32) {
+        // The account beside the history; above it in a narrow window.
+        let wide = width > 760
+        let layout = wide
+            ? AnyLayout(HStackLayout(alignment: .top, spacing: 32))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: 28))
+        layout {
             account
-                .frame(width: 300)
+                .frame(width: wide ? 300 : nil, alignment: .leading)
             history
                 .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .padding(.horizontal, MacMetrics.gutter)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .confirmationDialog("Disconnect Last.fm?", isPresented: $confirmsDisconnect, titleVisibility: .visible) {
             Button("Disconnect and Forget Keys", role: .destructive) { lastFM.disconnect() }
         } message: {

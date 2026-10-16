@@ -118,6 +118,7 @@ struct MacSearchResultsView: View {
     @Bindable var model: SearchModel
     @Environment(AppModel.self) private var app
     @Environment(Player.self) private var player
+    @State private var width: CGFloat = 1000
 
     var body: some View {
         MacPage(spacing: 32) {
@@ -141,6 +142,7 @@ struct MacSearchResultsView: View {
             }
         }
         .navigationTitle("Search")
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .onChange(of: model.filter) { Task { await model.run(music: app.music) } }
     }
 
@@ -158,13 +160,19 @@ struct MacSearchResultsView: View {
     @ViewBuilder
     private func all(_ found: SearchResults) -> some View {
         let songs = Array(found.songs.prefix(found.top == nil ? 8 : 4))
-        HStack(alignment: .top, spacing: 28) {
+        // Side by side when there's room for both; the top result above the songs when not.
+        let wide = width > 820
+        let layout = wide
+            ? AnyLayout(HStackLayout(alignment: .top, spacing: 28))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: 28))
+        layout {
             if let top = found.top {
                 VStack(alignment: .leading, spacing: 12) {
                     MacSectionTitle(title: "Top result")
                     MacTopResult(item: top, songs: found.topSongs)
                 }
-                .frame(width: 380)
+                .frame(width: wide ? 380 : nil)
+                .frame(maxWidth: wide ? nil : 520, alignment: .leading)
             }
             if !songs.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {

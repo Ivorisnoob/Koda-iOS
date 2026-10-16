@@ -20,6 +20,23 @@ struct SettingsView: View {
                     Toggle(isOn: $player.normalizesVolume) {
                         SettingLabel("Normalize Volume", systemImage: "speaker.wave.2.fill", tint: .pink)
                     }
+                    Toggle(isOn: $player.crossfades) {
+                        SettingLabel("Crossfade", systemImage: "wave.3.right", tint: .teal)
+                    }
+                    if player.crossfades {
+                        VStack(alignment: .leading, spacing: 4) {
+                            LabeledContent("Overlap", value: "\(Int(player.crossfadeDuration)) s")
+                            Slider(value: $player.crossfadeDuration, in: 1...12, step: 1) {
+                                Text("Overlap")
+                            } minimumValueLabel: {
+                                Text("1 s")
+                            } maximumValueLabel: {
+                                Text("12 s")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
                     Toggle(isOn: $settings.showsSkipButtons) {
                         SettingLabel("Skip Buttons", systemImage: settings.skipInterval.forwardSymbol, tint: .orange)
                     }
@@ -33,7 +50,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Playback")
                 } footer: {
-                    Text("Autoplay keeps the music going with songs like the last one when the queue ends. Normalize Volume plays loud masters at a similar level to everything else. Skip Buttons jump back or ahead within the song from Now Playing.")
+                    Text("Autoplay keeps the music going with songs like the last one when the queue ends. Normalize Volume plays loud masters at a similar level to everything else. Crossfade overlaps the end of one song with the start of the next, and gives skips a short fade. Skip Buttons jump back or ahead within the song from Now Playing.")
                 }
 
                 Section {
@@ -380,6 +397,55 @@ struct StorageSettingsView: View {
 // MARK: - Backup
 
 /// A library backup as a file for the share sheet and Files.
+extension AndroidImportSummary {
+    /// What importing takes, said beside the button.
+    static let explanation = "Adds liked songs, listening history and stats, searches, the playlists you made and the albums and playlists you saved from a Koda for Android backup file. Nothing here is replaced. Videos, subscriptions, settings and songs that were files on the phone stay behind."
+
+    /// What was added, as one sentence.
+    var sentence: String {
+        guard !isEmpty else { return "Everything in that backup is already in your library." }
+        func count(_ n: Int, _ one: String, _ many: String) -> String? { n > 0 ? "\(n.formatted()) \(n == 1 ? one : many)" : nil }
+        let parts = [
+            count(likedSongs, "liked song", "liked songs"),
+            count(playlists, "playlist", "playlists"),
+            count(saved, "saved album or playlist", "saved albums and playlists"),
+            count(plays, "play", "plays"),
+            count(searches, "search", "searches"),
+        ].compactMap { $0 }
+        return "Added \(parts.formatted(.list(type: .and)))."
+    }
+}
+
+extension View {
+    /// Picks a Koda for Android backup and adds what Koda can use from it to the library.
+    func androidBackupImporter(isPresented: Binding<Bool>, outcome: Binding<String?>) -> some View {
+        modifier(AndroidBackupImporter(isPresented: isPresented, outcome: outcome))
+    }
+}
+
+private struct AndroidBackupImporter: ViewModifier {
+    @Binding var isPresented: Bool
+    @Binding var outcome: String?
+    @Environment(Library.self) private var library
+
+    func body(content: Content) -> some View {
+        // Android's backup is a zip, whatever name or extension it arrived with.
+        content.fileImporter(isPresented: $isPresented, allowedContentTypes: [.zip, .data]) { result in
+            guard case .success(let url) = result else { return }
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let backup = try AndroidBackup.read(Data(contentsOf: url))
+                outcome = library.importAndroid(backup).sentence
+            } catch let error as AndroidBackup.ReadError {
+                outcome = error.localizedDescription
+            } catch {
+                outcome = "Koda couldn't read that file."
+            }
+        }
+    }
+}
+
 struct LibraryBackupDocument: FileDocument {
     static let readableContentTypes: [UTType] = [.json]
     var data: Data
@@ -401,6 +467,7 @@ struct BackupSettingsView: View {
     @Environment(Library.self) private var library
     @State private var exportDocument: LibraryBackupDocument?
     @State private var importing = false
+    @State private var importingAndroid = false
     @State private var pendingRestore: Data?
     @State private var outcome: String?
 
@@ -423,6 +490,18 @@ struct BackupSettingsView: View {
                 }
             } footer: {
                 Text("Replaces everything in your library with what the backup holds.")
+            }
+            Section {
+                // On the button rather than the form: two file importers on one view, and
+                // only one of them opens.
+                Button {
+                    importingAndroid = true
+                } label: {
+                    Label("Import from Koda for Android", systemImage: "square.and.arrow.down.on.square")
+                }
+                .androidBackupImporter(isPresented: $importingAndroid, outcome: $outcome)
+            } footer: {
+                Text(AndroidImportSummary.explanation)
             }
         }
         .navigationTitle("Back Up and Restore")

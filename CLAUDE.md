@@ -20,8 +20,9 @@ KodaCore/            Swift package: everything below the UI (has tests)
   Parsing/           JSON → models (Pages.swift, Rows.swift); Rows.isVideo detects music videos
   Models/            Song, Artwork, *Summary, Shelf, MusicItem, Mood (all Codable), YouTubeLink
   Playback/          Player (AVPlayer, queue, remote commands, persistence), PlayQueue, CachingLoader
-  Library/           Library (liked, recent, stats, user playlists → library.json), Taste (mix seeds)
-  Storage/           AudioStore (song cache + downloads), Downloads
+  Library/           Library (liked, recent, stats, user playlists → library.json), Taste (mix seeds),
+                     AndroidBackup (reads Koda for Android's backup zip; Library.importAndroid merges it)
+  Storage/           AudioStore (song cache + downloads; completeSongs = Ready Offline), Downloads, ZipReader
   Lyrics/, LastFM/   lyrics sources + parsing; Last.fm scrobbling
 Koda/                the app target
   App/               KodaApp (+ .appEnvironment), AppModel (long-lived objects), AppSettings (UserDefaults prefs),
@@ -46,6 +47,11 @@ docs/                mac.md (Mac decisions and scars), lastfm.md
 - **Artwork:** always `ArtworkView` (square crop; YouTube video thumbnails are letterboxed 4:3 and are scaled to hide the bars). Images that fill a frame go in an `.overlay` of a fixed shape so their own size never drives layout.
 - **Skip buttons:** `AppSettings.showsSkipButtons` / `skipInterval` (5/10/15/30 s, `gobackward.N`/`goforward.N` symbols) → `Player.skip(by:)`. Shown in `TransportControls` (Now Playing) and `MacPlayerBar`; ⌥⌘←/→ in the Controls menu. Lock-screen skip commands stay off so next/previous remain there.
 - **Sidebar foot (Mac):** `MacSidebarGlance` shows the next song and today's listening, attached with `safeAreaBar` so the list gets the system scroll-edge effect under it.
+- **Crossfade:** `Player.crossfades` / `crossfadeDuration` (default on, 5 s, 1–12). With it on, the next song waits on a separate paused `AVQueuePlayer` (`standby`) instead of behind the current item; a boundary observer at end − duration calls `switchToStandby`, which retires the old player to `tail` (fading out, equal-power) and adopts the standby as `avPlayer` (`attach`/`detach` move the KVO + time observers; callbacks from a non-main player are dropped). Skips fade by `Player.skipFade` (0.6 s). AVFoundation can't move an item between players (`_attachToPlayer` throws), hence two players. Off, the old gapless queue path is unchanged. Live tests: `KODA_LIVE=1 swift test --filter LivePlayerTests`.
+- **Last.fm credentials:** Keychain read returns found/missing/unreadable. Unreadable (locked device, Mac keychain locked) is *not* signed out: `connectedUser` (in lastfm.json) keeps it shown connected, plays queue, every call re-reads first, and nothing writes over the saved credentials until read (`saveCredentials(replacing:)` only for sign-in).
+- **Ready Offline:** `Route.SongSource.offline` / `MacSection.offline` → `SavedSongsView` listing `AudioStore.completeSongs` (downloads + songs cached whole).
+- **Android import:** Settings → Back Up and Restore → Import from Koda for Android (both platforms, `androidBackupImporter` modifier). Takes liked songs, play history (→ stats, daily listening, recent), searches, user playlists, saved albums (MPREb ids) and playlists from the active profile; skips local files. Merges; `androidPlaysImportedThrough` stops plays counting twice. Fixture is a real Java-written zip.
+- **Mac window:** min 700×520. Pages that put two columns side by side switch to one under a width (`onGeometryChange` + `AnyLayout`): Home's mix/picks, search's top result, Last.fm, collection headers (smaller cover < 620), player bar (narrow < 760: 270 pt transport, speaker-only volume). Search is `.searchable(placement: .toolbar)` (top right); Home's Refresh is in its page title (⌘R), like Last.fm's Sync Now.
 - **Persistence:** queue (`Player.persistQueue`), library JSON and audio store are flushed in `AppModel.saveState()` when the app leaves the screen.
 
 ## Testing the real (Release) builds

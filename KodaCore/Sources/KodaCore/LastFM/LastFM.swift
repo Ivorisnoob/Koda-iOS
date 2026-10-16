@@ -93,9 +93,17 @@ public final class LastFM {
         var recent: [LastFMTrack] = []
         var refreshedAt: Date?
         var lastSent: Date?
+        /// Who is signed in, kept outside the Keychain (it isn't secret), so Koda still knows
+        /// it's connected on a launch where the Keychain can't be read yet.
+        var connectedUser: String?
     }
 
     private var credentials = Credentials()
+    /// The Keychain refused to be read at launch: locked, or Koda started in the background
+    /// before the first unlock. That isn't being signed out, so nothing overwrites the saved
+    /// credentials until they've been read; every call tries reading them again first.
+    private var credentialsUnreadable = false
+    private var connectedUser: String?
     private let stateFile: URL
     private let keychain: LastFMKeychain
     private let urlSession: URLSession
@@ -142,6 +150,7 @@ public final class LastFM {
     public func disconnect() {
         invalidate()
         credentials = Credentials()
+        credentialsUnreadable = false
         keychain.delete()
         isEnabled = false
         queued = []
@@ -169,13 +178,13 @@ public final class LastFM {
         credentials.apiKey = key
         credentials.secret = secret
         credentials.token = ""
-        saveCredentials()
+        saveCredentials(replacing: true)
         return try await run { [self] in
             let response = try await request("auth.getToken", signed: true)
             guard let token = response["token"] as? String, !token.isEmpty else { throw LastFMError.unexpectedResponse }
             credentials.token = token
             credentials.tokenDate = Date()
-            saveCredentials()
+            saveCredentials(replacing: true)
             return LastFMProtocol.authorizationURL(apiKey: key, token: token)
         }
     }
@@ -206,7 +215,7 @@ public final class LastFM {
             credentials.user = name
             credentials.token = ""
             credentials.tokenDate = nil
-            saveCredentials()
+            saveCredentials(replacing: true)
             save()
             try await flush()
             try await refreshData()
@@ -268,11 +277,13 @@ public final class LastFM {
 
     /// Try to send waiting plays, unless a call is running or Last.fm asked Koda to wait.
     public func syncSoon() {
+        reloadCredentialsIfNeeded()
         guard canScrobble, !queued.isEmpty, operation == nil, Date() >= retryAfter else { return }
         Task { try? await run { [self] in try await flush() } }
     }
 
     private func refreshSoon() {
+        reloadCredentialsIfNeeded()
         guard isEnabled, isConnected, !isPaused, operation == nil else { return }
         Task { await refresh() }
     }
@@ -355,6 +366,7 @@ public final class LastFM {
     private func request(_ method: String, _ parameters: [String: String] = [:], signed: Bool = false,
                          authenticated: Bool = false) async throws -> [String: Any] {
         guard isEnabled, !isPaused else { throw LastFMError.paused }
+        guard reloadCredentialsIfNeeded() else { throw LastFMError.credentialsLocked }
         let expected = generation
         var all = parameters
         all["method"] = method
@@ -420,7 +432,11 @@ public final class LastFM {
     // MARK: Storage
 
     private func load() {
-        credentials = keychain.read() ?? Credentials()
+        switch keychain.read(Credentials.self) {
+        case .found(let saved): credentials = saved
+        case .missing: credentials = Credentials()
+        case .unreadable: credentialsUnreadable = true
+        }
         if let data = try? Data(contentsOf: stateFile), let stored = try? JSONDecoder().decode(Stored.self, from: data) {
             isEnabled = stored.enabled
             queued = stored.queue
@@ -428,12 +444,28 @@ public final class LastFM {
             recent = stored.recent
             refreshedAt = stored.refreshedAt
             lastSent = stored.lastSent
+            connectedUser = stored.connectedUser
         }
         publishCredentials()
     }
 
+    /// Read the credentials if launch couldn't. Returns false while they still can't be read.
+    @discardableResult
+    private func reloadCredentialsIfNeeded() -> Bool {
+        guard credentialsUnreadable else { return true }
+        switch keychain.read(Credentials.self) {
+        case .found(let saved): credentials = saved
+        case .missing: credentials = Credentials()
+        case .unreadable: return false
+        }
+        credentialsUnreadable = false
+        publishCredentials()
+        return true
+    }
+
     private func save() {
-        let stored = Stored(enabled: isEnabled, queue: queued, profile: profile, recent: recent, refreshedAt: refreshedAt, lastSent: lastSent)
+        let stored = Stored(enabled: isEnabled, queue: queued, profile: profile, recent: recent, refreshedAt: refreshedAt, lastSent: lastSent,
+                            connectedUser: connectedUser)
         guard let data = try? JSONEncoder().encode(stored) else { return }
         try? data.write(to: stateFile, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         var values = URLResourceValues()
@@ -442,14 +474,29 @@ public final class LastFM {
         try? url.setResourceValues(values)
     }
 
-    private func saveCredentials() {
+    /// `replacing` is for signing in, which means to set new credentials whatever was saved.
+    private func saveCredentials(replacing: Bool = false) {
+        // Never write over credentials that couldn't be read: they'd be lost for an empty set.
+        guard reloadCredentialsIfNeeded() || replacing else { return }
+        credentialsUnreadable = false
         keychain.write(credentials)
         publishCredentials()
     }
 
     private func publishCredentials() {
+        if credentialsUnreadable {
+            // Still signed in as far as anyone knows; plays queue up until the Keychain opens.
+            isConnected = connectedUser != nil
+            user = connectedUser ?? ""
+            return
+        }
         isConnected = !credentials.session.isEmpty
         user = credentials.user
+        let signedIn = isConnected ? credentials.user : nil
+        if connectedUser != signedIn {
+            connectedUser = signedIn
+            save()
+        }
         apiKey = credentials.apiKey
         hasSecret = !credentials.secret.isEmpty
         isSigningIn = !credentials.token.isEmpty
@@ -470,16 +517,29 @@ private struct LastFMKeychain {
          kSecAttrAccount as String: account]
     }
 
-    func read<T: Decodable>() -> T? {
+    enum Read<T> {
+        case found(T)
+        /// Nothing saved: never signed in, or signed out.
+        case missing
+        /// Something is saved but can't be read right now (the device is locked).
+        case unreadable
+    }
+
+    func read<T: Decodable>(_ type: T.Type) -> Read<T> {
         var query = query
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: AnyObject?
-        if SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data {
-            return try? JSONDecoder().decode(T.self, from: data)
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecSuccess, let data = result as? Data, let value = try? JSONDecoder().decode(T.self, from: data) {
+            return .found(value)
         }
-        guard let data = try? Data(contentsOf: fallback) else { return nil }
-        return try? JSONDecoder().decode(T.self, from: data)
+        if let data = try? Data(contentsOf: fallback), let value = try? JSONDecoder().decode(T.self, from: data) {
+            return .found(value)
+        }
+        // Not found, or no Keychain at all for this build (the file above stands in for it):
+        // nothing is saved. Anything else is the Keychain saying "not now".
+        return status == errSecItemNotFound || status == errSecMissingEntitlement || status == errSecSuccess ? .missing : .unreadable
     }
 
     func write<T: Encodable>(_ value: T) {

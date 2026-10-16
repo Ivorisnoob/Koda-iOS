@@ -21,6 +21,8 @@ enum Route: Hashable {
 
     enum SongSource: Hashable {
         case liked, recent, downloaded
+        /// Every song held whole on the device: downloads and songs kept from listening.
+        case offline
     }
 
     init?(_ item: MusicItem) {

@@ -11,6 +11,7 @@ struct MacHomeView: View {
     /// Owned by the window, so Home is still there after a visit to another section.
     let model: HomeModel
     @State private var width: CGFloat = 1000
+    @State private var refreshing = false
 
     var body: some View {
         MacPage {
@@ -37,18 +38,6 @@ struct MacHomeView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .animation(.smooth, value: model.state.value == nil)
         .navigationTitle("Home")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button("Refresh", systemImage: "arrow.clockwise") {
-                    Task {
-                        await app.music.clearPageCache()
-                        await load()
-                    }
-                }
-                    .keyboardShortcut("r", modifiers: .command)
-                    .help("Refresh Home (⌘R)")
-            }
-        }
         .task {
             // Loaded already: shown as it was. Last launch's snapshot, or a Home half an hour
             // old, refreshes quietly in place.
@@ -56,8 +45,24 @@ struct MacHomeView: View {
         }
     }
 
+    /// The greeting, with Refresh beside it as Last.fm's page has Sync Now: the window's
+    /// toolbar keeps search.
     private var header: some View {
-        MacPageTitle(title: greeting, subtitle: Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+        MacPageTitle(title: greeting, subtitle: Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day())) {
+            if refreshing { ProgressView().controlSize(.small) }
+            Button("Refresh", systemImage: "arrow.clockwise") {
+                Task {
+                    refreshing = true
+                    await app.music.clearPageCache()
+                    await load()
+                    refreshing = false
+                }
+            }
+            .buttonStyle(.glass)
+            .disabled(refreshing)
+            .keyboardShortcut("r", modifiers: .command)
+            .help("Refresh Home (⌘R)")
+        }
     }
 
     @ViewBuilder

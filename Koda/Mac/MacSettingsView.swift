@@ -281,6 +281,22 @@ private struct MacPlaybackPane: View {
             MacSettingsToggle(title: "Normalize volume", detail: "Play loud masters at a similar level to everything else.",
                               isOn: $player.normalizesVolume)
         }
+        MacSettingsGroup(title: "Crossfade", footer: "Skipping a song with crossfade on fades it out quickly instead of cutting it off.") {
+            MacSettingsToggle(title: "Crossfade songs", detail: "The end of one song overlaps the start of the next.",
+                              isOn: $player.crossfades)
+            MacSettingsRow(title: "Overlap") {
+                HStack(spacing: 8) {
+                    Slider(value: $player.crossfadeDuration, in: 1...12, step: 1)
+                        .frame(width: 180)
+                    Text("\(Int(player.crossfadeDuration)) s")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 34, alignment: .trailing)
+                }
+                .controlSize(.small)
+            }
+            .disabled(!player.crossfades)
+        }
         MacSettingsGroup(title: "Skipping", footer: "⌥⌘← and ⌥⌘→ skip back and ahead too, with the buttons shown or not.") {
             MacSettingsToggle(title: "Skip buttons", detail: "Beside play in the player bar and Now Playing, to jump within the song.",
                               isOn: $settings.showsSkipButtons)
@@ -517,6 +533,7 @@ private struct MacBackupPane: View {
     @Environment(Library.self) private var library
     @State private var exportDocument: LibraryBackupDocument?
     @State private var importing = false
+    @State private var importingAndroid = false
     @State private var pendingRestore: Data?
     @State private var outcome: String?
 
@@ -529,6 +546,13 @@ private struct MacBackupPane: View {
             }
             MacSettingsRow(title: "Restore from backup", detail: "Replaces everything in your library with what the backup holds.") {
                 Button("Restore…") { importing = true }
+            }
+        }
+        MacSettingsGroup(title: "Koda for Android", footer: AndroidImportSummary.explanation) {
+            MacSettingsRow(title: "Import from Koda for Android", detail: "Choose the backup file you made in Koda on your phone.") {
+                Button("Import…") { importingAndroid = true }
+                    // Its own importer, on its own button: two on one view and only one opens.
+                    .androidBackupImporter(isPresented: $importingAndroid, outcome: $outcome)
             }
         }
         .fileExporter(isPresented: Binding(get: { exportDocument != nil }, set: { if !$0 { exportDocument = nil } }),

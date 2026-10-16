@@ -85,6 +85,12 @@ public final class AudioStore: @unchecked Sendable {
         lock.withLock { entries.values.filter(\.isDownload).sorted { $0.added > $1.added } }
     }
 
+    /// Songs held whole, downloaded or kept from listening, most recently played first: what
+    /// plays with no connection.
+    public var completeSongs: [Song] {
+        lock.withLock { entries.values.filter(\.isComplete).sorted { $0.lastUsed > $1.lastUsed }.compactMap(\.song) }
+    }
+
     public var cacheBytes: Int64 { lock.withLock { entries.values.filter { !$0.isDownload }.reduce(0) { $0 + $1.bytes } } }
     public var downloadBytes: Int64 { lock.withLock { entries.values.filter(\.isDownload).reduce(0) { $0 + $1.bytes } } }
 

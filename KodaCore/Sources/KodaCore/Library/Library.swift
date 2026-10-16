@@ -22,6 +22,9 @@ public final class Library {
     public private(set) var dailyListening: [String: TimeInterval] = [:]
     /// Seconds to shift synced lyrics by, per video id; positive shows lines later.
     public private(set) var lyricsOffsets: [String: TimeInterval] = [:]
+    /// The newest play taken from a Koda for Android backup, so importing the same backup,
+    /// or a later one that repeats its history, never counts a play twice.
+    private var androidPlaysImportedThrough: Date?
 
     private let file: URL?
     private static let recentLimit = 200
@@ -257,6 +260,7 @@ public final class Library {
         var songStats: [String: SongStats] = [:]
         var dailyListening: [String: TimeInterval] = [:]
         var lyricsOffsets: [String: TimeInterval] = [:]
+        var androidPlaysImportedThrough: Date?
 
         init() {}
 
@@ -273,6 +277,7 @@ public final class Library {
             songStats = try c.decodeIfPresent([String: SongStats].self, forKey: .songStats) ?? [:]
             dailyListening = try c.decodeIfPresent([String: TimeInterval].self, forKey: .dailyListening) ?? [:]
             lyricsOffsets = try c.decodeIfPresent([String: TimeInterval].self, forKey: .lyricsOffsets) ?? [:]
+            androidPlaysImportedThrough = try c.decodeIfPresent(Date.self, forKey: .androidPlaysImportedThrough)
         }
     }
 
@@ -293,6 +298,7 @@ public final class Library {
         songStats = snapshot.songStats
         dailyListening = snapshot.dailyListening
         lyricsOffsets = snapshot.lyricsOffsets
+        androidPlaysImportedThrough = snapshot.androidPlaysImportedThrough
     }
 
     private func save() {
@@ -314,6 +320,7 @@ public final class Library {
         snapshot.songStats = songStats
         snapshot.dailyListening = dailyListening
         snapshot.lyricsOffsets = lyricsOffsets
+        snapshot.androidPlaysImportedThrough = androidPlaysImportedThrough
         return snapshot
     }
 
@@ -351,6 +358,81 @@ public final class Library {
         }
         apply(backup.library)
         save()
+    }
+}
+
+// MARK: - Koda for Android
+
+/// What an Android import added, to tell the listener.
+public struct AndroidImportSummary: Sendable, Equatable {
+    public var likedSongs = 0
+    public var plays = 0
+    public var playlists = 0
+    public var saved = 0
+    public var searches = 0
+
+    public var isEmpty: Bool { likedSongs + plays + playlists + saved + searches == 0 }
+}
+
+extension Library {
+    /// Add a Koda for Android backup to the library. Nothing here is replaced: likes, saved
+    /// albums and playlists join what's already saved, plays add to the stats and history,
+    /// and a playlist already here under the same name with the same songs isn't added again.
+    @discardableResult
+    public func importAndroid(_ backup: AndroidBackup, calendar: Calendar = .current) -> AndroidImportSummary {
+        var summary = AndroidImportSummary()
+
+        let likedIds = Set(liked.map(\.id))
+        let newLikes = backup.liked.filter { !likedIds.contains($0.id) }
+        liked += newLikes
+        summary.likedSongs = newLikes.count
+
+        for album in backup.albums where !isSaved(album: album.id) {
+            albums.insert(album, at: 0)
+            summary.saved += 1
+        }
+        for playlist in backup.savedPlaylists where !isSaved(playlist: playlist.id) {
+            playlists.insert(playlist, at: 0)
+            summary.saved += 1
+        }
+
+        for playlist in backup.playlists {
+            let ids = playlist.songs.map(\.id)
+            guard !userPlaylists.contains(where: { $0.name == playlist.name && $0.songs.map(\.id) == ids }) else { continue }
+            userPlaylists.append(UserPlaylist(name: playlist.name, songs: playlist.songs, created: playlist.created))
+            summary.playlists += 1
+        }
+        userPlaylists.sort { $0.created > $1.created }
+
+        let fresh = backup.plays.filter { play in androidPlaysImportedThrough.map { play.date > $0 } ?? true }
+        for play in fresh {
+            var stats = songStats[play.song.id] ?? SongStats(song: play.song, firstPlayed: play.date)
+            stats.plays += 1
+            stats.seconds += play.seconds
+            stats.firstPlayed = min(stats.firstPlayed, play.date)
+            stats.lastPlayed = max(stats.lastPlayed, play.date)
+            songStats[play.song.id] = stats
+            dailyListening[Self.dayKey(play.date, calendar: calendar), default: 0] += play.seconds
+        }
+        summary.plays = fresh.count
+        if let newest = fresh.last?.date { androidPlaysImportedThrough = newest }
+
+        // Recently played, newest first across both: each song where it was last played.
+        var lastPlayed: [String: (Song, Date)] = [:]
+        for song in recent { lastPlayed[song.id] = (song, songStats[song.id]?.lastPlayed ?? .distantPast) }
+        for play in fresh where (lastPlayed[play.song.id]?.1 ?? .distantPast) < play.date {
+            lastPlayed[play.song.id] = (lastPlayed[play.song.id]?.0 ?? play.song, play.date)
+        }
+        recent = lastPlayed.values.sorted { $0.1 > $1.1 }.prefix(Self.recentLimit).map(\.0)
+
+        let known = Set(searches.map { $0.lowercased() })
+        let newSearches = backup.searches.filter { !known.contains($0.lowercased()) }
+        let searchesBefore = searches.count
+        searches = Array((searches + newSearches).prefix(Self.searchLimit))
+        summary.searches = searches.count - searchesBefore
+
+        save()
+        return summary
     }
 }
 

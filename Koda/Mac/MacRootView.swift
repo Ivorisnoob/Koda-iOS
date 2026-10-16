@@ -4,7 +4,7 @@ import SwiftUI
 /// A place in the Mac's sidebar.
 enum MacSection: Hashable {
     case home, browse, search
-    case recent, liked, albums, playlists, artists, downloads, stats
+    case recent, liked, albums, playlists, artists, downloads, offline, stats
     case lastFM
     case userPlaylist(UUID)
 }
@@ -74,7 +74,8 @@ struct MacRootView: View {
     private func searching<V: View>(_ content: V) -> some View {
         @Bindable var search = search
         return content
-        .searchable(text: $search.query, placement: .sidebar, prompt: "Songs, artists, albums or a link")
+        // In the window's toolbar, top right, where the Mac's apps keep search.
+        .searchable(text: $search.query, placement: .toolbar, prompt: "Songs, artists, albums or a link")
         .searchFocused($searchFocused)
         .searchSuggestions {
             if search.query != search.submitted {
@@ -189,6 +190,7 @@ struct MacRootView: View {
                 sidebarRow("Playlists", "music.note.list", .playlists)
                 sidebarRow("Artists", "music.mic", .artists)
                 sidebarRow("Downloads", "arrow.down.circle", .downloads, count: downloads.songs.count)
+                sidebarRow("Ready Offline", "airplane", .offline)
                 sidebarRow("Listening Stats", "chart.bar", .stats)
                 sidebarRow("Last.fm", "dot.radiowaves.left.and.right", .lastFM)
             }
@@ -287,6 +289,7 @@ struct MacRootView: View {
         case .recent: SavedSongsView(title: "Recently Played", source: .recent)
         case .liked: SavedSongsView(title: "Liked Songs", source: .liked)
         case .downloads: SavedSongsView(title: "Downloads", source: .downloaded)
+        case .offline: SavedSongsView(title: "Ready Offline", source: .offline)
         case .albums: MacLibraryGrid(kind: .albums)
         case .playlists: MacLibraryGrid(kind: .playlists)
         case .artists: MacLibraryGrid(kind: .artists)

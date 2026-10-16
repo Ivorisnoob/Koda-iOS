@@ -127,6 +127,8 @@ public enum LastFMError: LocalizedError, Equatable {
     case dailyLimit
     case unexpectedResponse
     case network
+    /// The Keychain wouldn't give up the sign-in yet: the device is locked, or Koda started before it was first unlocked.
+    case credentialsLocked
     case api(Int, String)
 
     public var errorDescription: String? {
@@ -142,6 +144,7 @@ public enum LastFMError: LocalizedError, Equatable {
         case .dailyLimit: "Last.fm's daily scrobble limit is reached. Plays wait and send later."
         case .unexpectedResponse: "Last.fm sent something Koda didn't understand."
         case .network: "Couldn't reach Last.fm. Plays wait and send when you're back online."
+        case .credentialsLocked: "Your Last.fm sign-in can't be read while the device is locked. Plays wait and send after you unlock it."
         case .api(let code, let message): message.isEmpty ? "Last.fm error \(code)." : "\(message) (Last.fm error \(code))"
         }
     }
@@ -149,7 +152,7 @@ public enum LastFMError: LocalizedError, Equatable {
     /// Errors after which the queue waits five minutes rather than trying again at once.
     var coolsDown: Bool {
         switch self {
-        case .network, .rateLimited, .dailyLimit: true
+        case .network, .rateLimited, .dailyLimit, .credentialsLocked: true
         case .api(let code, _): [8, 11, 16, 29].contains(code)
         default: false
         }

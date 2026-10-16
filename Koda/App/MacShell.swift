@@ -22,19 +22,24 @@ struct MacPlayerBar: View {
     var zoom: Namespace.ID?
     @Environment(AppModel.self) private var app
     @Environment(Player.self) private var player
+    @State private var width: CGFloat = 900
+
+    /// A narrow window: the transport gives up some width, and the volume keeps its speaker.
+    private var isNarrow: Bool { width < 760 }
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: isNarrow ? 10 : 16) {
             nowPlaying
                 .frame(maxWidth: .infinity, alignment: .leading)
             VStack(spacing: 4) {
                 transport
                 BarProgress()
             }
-            .frame(width: 360)
+            .frame(width: isNarrow ? 270 : 360)
             trailing
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .padding(.horizontal, 12)
         .frame(height: 68)
         .glassEffect(.regular, in: .rect(cornerRadius: 22, style: .continuous))
@@ -67,7 +72,7 @@ struct MacPlayerBar: View {
     }
 
     private var transport: some View {
-        HStack(spacing: 18) {
+        HStack(spacing: isNarrow ? 8 : 18) {
             iconButton("shuffle", help: "Shuffle", isOn: player.isShuffled) { player.setShuffle(!player.isShuffled) }
             iconButton("backward.fill", help: "Previous") { player.previous() }
             if app.settings.showsSkipButtons {
@@ -95,9 +100,9 @@ struct MacPlayerBar: View {
                 .disabled(player.current == nil)
             iconButton("list.bullet", help: "Queue") { open(.queue) }
                 .disabled(player.current == nil)
-            BarVolume()
-                .frame(width: 110)
-                .padding(.leading, 6)
+            BarVolume(showsSlider: !isNarrow)
+                .frame(width: isNarrow ? 22 : 110)
+                .padding(.leading, isNarrow ? 0 : 6)
         }
     }
 
@@ -190,6 +195,8 @@ private struct BarProgress: View {
 
 /// Koda's own volume, drawn like the progress line; the speaker shows how loud it is.
 private struct BarVolume: View {
+    /// Off in a narrow window: the speaker alone, which still mutes, and ⌘↑ ⌘↓ still change it.
+    var showsSlider = true
     @Environment(Player.self) private var player
     @State private var hovering = false
 
@@ -207,23 +214,7 @@ private struct BarVolume: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help(player.volume > 0 ? "Mute" : "Unmute")
-            GeometryReader { geometry in
-                let width = geometry.size.width
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.primary.opacity(0.15))
-                    Capsule().fill(.primary.opacity(0.7))
-                        .frame(width: max(0, width * CGFloat(player.volume)))
-                }
-                .clipShape(.capsule)
-                .frame(height: hovering ? 6 : 4)
-                .frame(maxHeight: .infinity)
-                .contentShape(.rect)
-                .onHover { hovering = $0 }
-                .gesture(DragGesture(minimumDistance: 0).onChanged {
-                    player.volume = Float(min(1, max(0, $0.location.x / width)))
-                })
-            }
-            .frame(height: 12)
+            if showsSlider { slider }
         }
         .animation(.snappy(duration: 0.15), value: hovering)
         .accessibilityElement()
@@ -232,6 +223,27 @@ private struct BarVolume: View {
         .accessibilityAdjustableAction { direction in
             player.volume = min(1, max(0, player.volume + (direction == .increment ? 0.1 : -0.1)))
         }
+    }
+
+    private var slider: some View {
+        @Bindable var player = player
+        return GeometryReader { geometry in
+            let width = geometry.size.width
+            ZStack(alignment: .leading) {
+                Capsule().fill(.primary.opacity(0.15))
+                Capsule().fill(.primary.opacity(0.7))
+                    .frame(width: max(0, width * CGFloat(player.volume)))
+            }
+            .clipShape(.capsule)
+            .frame(height: hovering ? 6 : 4)
+            .frame(maxHeight: .infinity)
+            .contentShape(.rect)
+            .onHover { hovering = $0 }
+            .gesture(DragGesture(minimumDistance: 0).onChanged {
+                player.volume = Float(min(1, max(0, $0.location.x / width)))
+            })
+        }
+        .frame(height: 12)
     }
 
     private var symbol: String {

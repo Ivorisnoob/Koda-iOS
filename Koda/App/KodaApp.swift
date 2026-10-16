@@ -13,7 +13,7 @@ struct KodaApp: App {
                 // Pausing listening history pauses scrobbling with it.
                 .onChange(of: model.settings.savesListeningHistory) { _, saves in model.lastFM.isPaused = !saves }
                 .preferredColorScheme(model.settings.theme.colorScheme)
-                .frame(minWidth: Platform.isMac ? 960 : nil, minHeight: Platform.isMac ? 600 : nil)
+                .frame(minWidth: Platform.isMac ? 700 : nil, minHeight: Platform.isMac ? 520 : nil)
         }
         .defaultSize(width: 1180, height: 820)
         .windowResizability(.contentMinSize)

@@ -47,6 +47,9 @@ struct LibraryView: View {
                     LibraryLink(title: "Downloads", systemImage: "arrow.down.circle.fill", tint: .blue, count: downloads.songs.count,
                                 route: .songs(title: "Downloads", source: .downloaded))
                     Divider().padding(.leading, 56)
+                    LibraryLink(title: "Ready Offline", systemImage: "airplane", tint: .green, count: 0,
+                                route: .songs(title: "Ready Offline", source: .offline))
+                    Divider().padding(.leading, 56)
                     LibraryLink(title: "Recently Played", systemImage: "clock.fill", tint: .orange, count: library.recent.count,
                                 route: .songs(title: "Recently Played", source: .recent))
                     Divider().padding(.leading, 56)
