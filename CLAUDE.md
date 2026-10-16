@@ -33,6 +33,10 @@ Koda/                the app target
   Player/            NowPlayingView (+ TransportControls), MiniPlayer (PlayPauseButton), QueuePanel, lyrics views, SleepTimer
   Components/        SongRow, Cards, ShelfView, Loading (LoadState, AsyncContent, placeholders), SongActions (SongMenuItems)
   Images/            ArtworkView, ImagePipeline (downsampled, memory + 300 MB URLCache on disk), Palette
+  Intents/           KodaIntents (App Intents + App Shortcuts + Spotlight, iPhone and Mac),
+                     SiriSchemas (iOS 27 audio schemas for the new Siri; only built with the iOS 27 SDK, never Catalyst)
+Shared/              compiled into the app AND KodaWidgets: PlaybackIntents (PlayLikedSongs, TogglePlayback)
+KodaWidgets/         widget extension (ivors.Koda.Widgets): Quick Play widget (Home/Lock Screen, Mac), Control Center controls
 docs/                mac.md (Mac decisions and scars), lastfm.md
 ```
 
@@ -52,6 +56,9 @@ docs/                mac.md (Mac decisions and scars), lastfm.md
 - **Ready Offline:** `Route.SongSource.offline` / `MacSection.offline` → `SavedSongsView` listing `AudioStore.completeSongs` (downloads + songs cached whole).
 - **Android import:** Settings → Back Up and Restore → Import from Koda for Android (both platforms, `androidBackupImporter` modifier). Takes liked songs, play history (→ stats, daily listening, recent), searches, user playlists, saved albums (MPREb ids) and playlists from the active profile; skips local files. Merges; `androidPlaysImportedThrough` stops plays counting twice. Fixture is a real Java-written zip.
 - **Mac window:** min 700×520. Pages that put two columns side by side switch to one under a width (`onGeometryChange` + `AnyLayout`): Home's mix/picks, search's top result, Last.fm, collection headers (smaller cover < 620), player bar (narrow < 760: 270 pt transport, speaker-only volume). Search is `.searchable(placement: .toolbar)` (top right); Home's Refresh is in its page title (⌘R), like Last.fm's Sync Now.
+- **Siri / Shortcuts:** intents get the app through `@Dependency var app: AppModel` (registered in `KodaApp.init`). Audio intents run in the app, which the system starts in the background. `IntentsIndex.update` (on launch and when liked songs/playlists change) refreshes App Shortcut parameters and Spotlight. iOS 27 schema code sits in `#if canImport(MediaIntents) && !targetEnvironment(macCatalyst)` + `@available(iOS 27, *)`; schema macros wrap the schema's properties, so in an init set `id` and plain stored properties *first*. Reference: Apple's "Integrating your music app with Apple Intelligence" sample. CI's iOS job runs on `xcode-27` for this.
+- **Widgets:** no App Group (the unsigned .ipa / ad-hoc .dmg can't carry one reliably), so widgets draw nothing from the app: buttons running `Shared/PlaybackIntents.swift` intents, which execute in the app (audio intents). Intents shared with the extension use `#if WIDGET_EXTENSION` (set in KodaWidgets' build settings) to stub `perform` there. Controls are iPhone-only (`#if !targetEnvironment(macCatalyst)`). A new widget needing app data would need an App Group plus entitlements in CI signing.
+- **Share Lyrics:** `LyricsShareSheet` scrolls to the line it was opened from; on the Mac it has its own layout (preview left, lines right, Cancel/Copy Image/Share in the foot, `.presentationSizing(.fitted)`).
 - **Persistence:** queue (`Player.persistQueue`), library JSON and audio store are flushed in `AppModel.saveState()` when the app leaves the screen.
 
 ## Testing the real (Release) builds

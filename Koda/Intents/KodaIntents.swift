@@ -180,28 +180,6 @@ struct PlayPlaylistIntent: AudioPlaybackIntent {
     }
 }
 
-struct PlayLikedSongsIntent: AudioPlaybackIntent {
-    static let title: LocalizedStringResource = "Play Liked Songs"
-    static let description = IntentDescription("Plays the songs you liked in Koda.", categoryName: "Playback")
-
-    @Parameter(title: "Shuffle", default: true)
-    var shuffle: Bool
-
-    static var parameterSummary: some ParameterSummary {
-        Summary("Play liked songs") { \.$shuffle }
-    }
-
-    @Dependency private var app: AppModel
-
-    @MainActor
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        let songs = app.library.liked
-        guard !songs.isEmpty else { return .result(dialog: "You haven't liked any songs in Koda yet.") }
-        app.player.play(songs, startAt: shuffle ? Int.random(in: 0..<songs.count) : 0, shuffled: shuffle)
-        return .result(dialog: "Playing your liked songs.")
-    }
-}
-
 /// "Play something" for any words: the best match on YouTube Music, as Search would show it.
 struct SearchAndPlayIntent: AudioPlaybackIntent {
     static let title: LocalizedStringResource = "Search and Play"
