@@ -34,8 +34,10 @@ struct SchemaSongEntity: IndexedEntity {
                               synonyms: ["\(title) by \(artistName)"])
     }
 
+    // The schema's properties are wrapped by the macro: plain stored ones are set first.
     init(_ song: Song) {
         id = song.id
+        artworkURL = song.artwork?.url(pixels: 300)
         title = song.title
         artistName = song.artistLine
         albumTitle = song.album?.title
@@ -45,7 +47,6 @@ struct SchemaSongEntity: IndexedEntity {
         artists = song.artists.map { SchemaArtistEntity(id: $0.id ?? $0.name, name: $0.name) }
         if artists.isEmpty, !song.artistLine.isEmpty { artists = [SchemaArtistEntity(id: song.artistLine, name: song.artistLine)] }
         composers = []
-        artworkURL = song.artwork?.url(pixels: 300)
     }
 
     var song: Song {
@@ -102,12 +103,12 @@ struct SchemaAlbumEntity: IndexedEntity {
 
     init(id: String, title: String, artistName: String, artworkURL: URL? = nil) {
         self.id = id
+        songs = []
+        self.artworkURL = artworkURL
         self.title = title
         self.artistName = artistName
         artists = artistName.isEmpty ? [] : [SchemaArtistEntity(id: artistName, name: artistName)]
-        songs = []
         universalProductCode = nil
-        self.artworkURL = artworkURL
     }
 
     init(_ album: AlbumSummary) {
@@ -160,9 +161,9 @@ struct SchemaArtistEntity: IndexedEntity {
 
     init(id: String, name: String) {
         self.id = id
-        self.name = name
         albums = []
         songs = []
+        self.name = name
     }
 }
 
@@ -221,20 +222,20 @@ struct SchemaPlaylistEntity: IndexedEntity {
 
     init(_ playlist: UserPlaylist) {
         id = playlist.id.uuidString
-        title = playlist.name
-        owner = nil
         trackCount = playlist.songs.count
         totalDuration = playlist.duration
+        title = playlist.name
+        owner = nil
         createdByMe = true
         curatedForMe = false
     }
 
     init(_ playlist: PlaylistSummary) {
         id = playlist.id
-        title = playlist.title
-        owner = playlist.subtitle.map { .curator($0) }
         trackCount = 0
         totalDuration = 0
+        title = playlist.title
+        owner = playlist.subtitle.map { .curator($0) }
         createdByMe = false
         curatedForMe = nil
     }
