@@ -1,10 +1,19 @@
+import AppIntents
 import KodaCore
 import SwiftUI
 
 @main
 struct KodaApp: App {
-    @State private var model = AppModel()
+    @State private var model: AppModel
     @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        let model = AppModel()
+        _model = State(initialValue: model)
+        // Siri and Shortcuts reach the app's objects through this, also when an intent starts
+        // the app in the background.
+        AppDependencyManager.shared.add(dependency: model)
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -14,6 +23,8 @@ struct KodaApp: App {
                 .onChange(of: model.settings.savesListeningHistory) { _, saves in model.lastFM.isPaused = !saves }
                 .preferredColorScheme(model.settings.theme.colorScheme)
                 .frame(minWidth: Platform.isMac ? 700 : nil, minHeight: Platform.isMac ? 520 : nil)
+                // Spotlight and Siri learn the liked songs and playlists, and again when they change.
+                .task(id: IntentsIndexKey(model.library)) { IntentsIndex.update(model) }
         }
         .defaultSize(width: 1180, height: 820)
         .windowResizability(.contentMinSize)
@@ -33,6 +44,18 @@ struct KodaApp: App {
         }
         .defaultSize(width: 820, height: 600)
         #endif
+    }
+}
+
+/// Changes when what Siri and Spotlight are told about does.
+private struct IntentsIndexKey: Equatable {
+    var liked: [String]
+    var playlists: [String]
+
+    @MainActor
+    init(_ library: Library) {
+        liked = library.liked.map(\.id)
+        playlists = library.userPlaylists.map { "\($0.id)\($0.name)\($0.songs.count)" }
     }
 }
 
