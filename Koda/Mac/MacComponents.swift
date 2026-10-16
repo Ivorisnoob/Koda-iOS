@@ -25,7 +25,9 @@ struct MacPage<Content: View>: View {
                 content()
             }
             .frame(maxWidth: MacMetrics.maxContentWidth, alignment: .leading)
-            .frame(maxWidth: .infinity)
+            // A minimum of zero: nothing on a page may ask the split view for more width than
+            // it has, or it floats the sidebar over the page and the page runs off the window.
+            .frame(minWidth: 0, maxWidth: .infinity)
             .padding(.top, 20)
             .padding(.bottom, 40)
         }
@@ -309,7 +311,10 @@ struct MacGrid<Item: Identifiable, Cell: View>: View {
             ForEach(items) { item in cell(item, side) }
         }
         .padding(.horizontal, MacMetrics.gutter)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // Measured here, a flexible frame that reports no minimum, rather than on the grid:
+        // columns fixed to the last width measured would hold the grid at that width, so it
+        // could never be measured narrower when the sidebar comes back.
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 }
@@ -499,6 +504,7 @@ struct MacTrackList: View {
             }
         }
         .padding(.horizontal, MacMetrics.gutter - 12)
+        .frame(minWidth: 0, maxWidth: .infinity)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 }
