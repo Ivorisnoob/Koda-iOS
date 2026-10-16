@@ -156,7 +156,8 @@ struct LyricsShareSheet: View {
         case .colors:
             LinearGradient(colors: [palette.palette.mesh[0], palette.palette.mesh[8]], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .cover:
-            if let cover { Image(uiImage: cover).resizable().scaledToFill() } else { Color.gray }
+            // Cropped in an overlay, so a wide video frame can't widen the swatch.
+            Color.gray.overlay { if let cover { Image(uiImage: cover).resizable().scaledToFill() } }.clipped()
         case .dark:
             Color(white: 0.1)
         }
@@ -295,18 +296,19 @@ struct LyricsCard: View {
             ], colors: palette.mesh)
             .overlay(Color.black.opacity(0.12))
         case .cover:
-            ZStack {
-                Color.black
-                if let cover {
-                    Image(uiImage: cover)
-                        .resizable()
-                        .scaledToFill()
-                        .blur(radius: 28)
-                        .scaleEffect(1.3)
+            // The cover is an overlay, so its own size (wider for a video) never sizes the card.
+            Color.black
+                .overlay {
+                    if let cover {
+                        Image(uiImage: cover)
+                            .resizable()
+                            .scaledToFill()
+                            .blur(radius: 28)
+                            .scaleEffect(1.3)
+                    }
                 }
-                LinearGradient(colors: [.black.opacity(0.25), .black.opacity(0.55)], startPoint: .top, endPoint: .bottom)
-            }
-            .clipped()
+                .overlay(LinearGradient(colors: [.black.opacity(0.25), .black.opacity(0.55)], startPoint: .top, endPoint: .bottom))
+                .clipped()
         case .dark:
             LinearGradient(colors: [Color(white: 0.13), Color(white: 0.04)], startPoint: .topLeading, endPoint: .bottomTrailing)
         }

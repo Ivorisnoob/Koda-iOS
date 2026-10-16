@@ -269,15 +269,29 @@ private struct MacProfilePane: View {
 }
 
 private struct MacPlaybackPane: View {
+    @Environment(AppModel.self) private var app
     @Environment(Player.self) private var player
 
     var body: some View {
         @Bindable var player = player
+        @Bindable var settings = app.settings
         MacSettingsGroup {
             MacSettingsToggle(title: "Autoplay", detail: "When the queue ends, keep going with songs like the last one.",
                               isOn: $player.autoplay)
             MacSettingsToggle(title: "Normalize volume", detail: "Play loud masters at a similar level to everything else.",
                               isOn: $player.normalizesVolume)
+        }
+        MacSettingsGroup(title: "Skipping", footer: "⌥⌘← and ⌥⌘→ skip back and ahead too, with the buttons shown or not.") {
+            MacSettingsToggle(title: "Skip buttons", detail: "Beside play in the player bar and Now Playing, to jump within the song.",
+                              isOn: $settings.showsSkipButtons)
+            MacSettingsRow(title: "Skip by") {
+                Picker("Skip by", selection: $settings.skipInterval) {
+                    ForEach(AppSettings.SkipInterval.allCases) { Text("\($0.rawValue) s").tag($0) }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .fixedSize()
+            }
         }
         MacSettingsGroup(title: "Volume", footer: "A Mac app can't set the system volume, so this is Koda's own level, under the system's. ⌘↑ and ⌘↓ change it too.") {
             MacSettingsRow(title: "Koda's volume") {

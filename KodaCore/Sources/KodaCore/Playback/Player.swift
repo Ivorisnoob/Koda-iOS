@@ -257,6 +257,12 @@ public final class Player {
         }
     }
 
+    /// Jump back (negative) or ahead within the song, held inside its length.
+    public func skip(by seconds: TimeInterval) {
+        guard queue.current != nil, phase == .ready else { return }
+        seek(to: position() + seconds)
+    }
+
     // MARK: - Queue editing
 
     public func setShuffle(_ on: Bool) {

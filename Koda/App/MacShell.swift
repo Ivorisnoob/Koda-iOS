@@ -20,6 +20,7 @@ struct MacPlayerBar: View {
     let open: (NowPlayingView.Panel) -> Void
     /// Where Now Playing zooms out of and back into.
     var zoom: Namespace.ID?
+    @Environment(AppModel.self) private var app
     @Environment(Player.self) private var player
 
     var body: some View {
@@ -69,7 +70,17 @@ struct MacPlayerBar: View {
         HStack(spacing: 18) {
             iconButton("shuffle", help: "Shuffle", isOn: player.isShuffled) { player.setShuffle(!player.isShuffled) }
             iconButton("backward.fill", help: "Previous") { player.previous() }
+            if app.settings.showsSkipButtons {
+                let interval = app.settings.skipInterval
+                iconButton(interval.backSymbol, help: "Back \(interval.rawValue) Seconds (⌥⌘←)") { player.skip(by: -interval.seconds) }
+                    .disabled(player.phase != .ready)
+            }
             PlayPauseButton(size: 18)
+            if app.settings.showsSkipButtons {
+                let interval = app.settings.skipInterval
+                iconButton(interval.forwardSymbol, help: "Ahead \(interval.rawValue) Seconds (⌥⌘→)") { player.skip(by: interval.seconds) }
+                    .disabled(player.phase != .ready)
+            }
             iconButton("forward.fill", help: "Next") { player.next() }
             iconButton(player.repeatMode == .one ? "repeat.1" : "repeat", help: "Repeat", isOn: player.repeatMode != .off) {
                 player.cycleRepeat()
@@ -252,6 +263,13 @@ struct KodaCommands: Commands {
             Button("Previous") { player.previous() }
                 .keyboardShortcut(.leftArrow, modifiers: .command)
                 .disabled(!hasSong)
+            let interval = model.settings.skipInterval
+            Button("Skip Ahead \(interval.rawValue) Seconds") { player.skip(by: interval.seconds) }
+                .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+                .disabled(player.phase != .ready)
+            Button("Skip Back \(interval.rawValue) Seconds") { player.skip(by: -interval.seconds) }
+                .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
+                .disabled(player.phase != .ready)
             Divider()
             Button("Increase Volume") { player.volume = min(1, player.volume + 0.1) }
                 .keyboardShortcut(.upArrow, modifiers: .command)

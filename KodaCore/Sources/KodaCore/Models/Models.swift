@@ -173,7 +173,7 @@ public enum MusicItem: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
-public struct Shelf: Identifiable, Hashable, Sendable {
+public struct Shelf: Identifiable, Hashable, Codable, Sendable {
     public var id: String { title + ":" + (items.first?.id ?? "") }
     public var title: String
     /// The small line YouTube puts above some titles ("FOR FEELING GOOD").

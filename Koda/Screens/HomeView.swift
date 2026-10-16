@@ -4,7 +4,7 @@ import SwiftUI
 @MainActor
 @Observable
 final class HomeModel {
-    struct Content {
+    nonisolated struct Content: Codable, Sendable {
         var quickPicks: [Song] = []
         var quickPicksTitle = "Quick picks"
         var shelves: [Shelf] = []
@@ -23,7 +23,7 @@ final class HomeModel {
     }
 
     /// Songs woven from the radios of what the listener plays most.
-    struct Mix: Equatable {
+    nonisolated struct Mix: Equatable, Codable, Sendable {
         var artists: [String]
         var songs: [Song]
         /// Built from listening; otherwise trending songs for someone new.
@@ -40,6 +40,35 @@ final class HomeModel {
     private(set) var artistPhotos: [String: Artwork] = [:]
     /// When Home last loaded, so a window coming back to it after a long while can refresh it.
     private(set) var loadedAt: Date?
+    /// What's shown came from the last launch's snapshot and hasn't been refreshed yet.
+    private(set) var isFromSnapshot = false
+
+    /// Home as it was last shown, saved to disk so a cold launch opens on it.
+    nonisolated private struct Saved: Codable, Sendable {
+        var content: Content
+        var mix: Mix?
+        var artistPhotos: [String: Artwork]
+        var loadedAt: Date
+    }
+
+    /// Read once per launch: `@State` builds a model each time its view is initialised.
+    private static let launchSnapshot = Snapshot.load(Saved.self, "home")
+
+    init() {
+        guard let saved = Self.launchSnapshot else { return }
+        state = .loaded(saved.content)
+        mix = saved.mix
+        mixPending = saved.mix == nil
+        artistPhotos = saved.artistPhotos
+        loadedAt = saved.loadedAt
+        isFromSnapshot = true
+    }
+
+    /// Nothing shown yet, only last launch's Home, or a Home half an hour old: load it again,
+    /// in place, over what's on screen.
+    var needsRefresh: Bool {
+        state.value == nil || isFromSnapshot || loadedAt.map { Date().timeIntervalSince($0) > 1800 } == true
+    }
 
     func load(music: YouTubeMusic, library: Library) async {
         if state.value == nil { state = .loading }
@@ -77,6 +106,10 @@ final class HomeModel {
             mix = Mix(artists: Array(Set(trending.map(Taste.leadArtist))).sorted().prefix(3).map { $0 }, songs: trending, isPersonal: false)
         }
         withAnimation(.smooth) { mixPending = false }
+        if let content = state.value, let loadedAt {
+            isFromSnapshot = false
+            Snapshot.save(Saved(content: content, mix: mix, artistPhotos: artistPhotos, loadedAt: loadedAt), "home")
+        }
     }
 
     /// Your Mix: a radio from each top artist's favourite song, woven together.
@@ -187,7 +220,8 @@ struct HomeView: View {
             await app.music.clearPageCache()
             await load()
         }
-        .task { if model.state.value == nil { await load() } }
+        // A snapshot from the last launch shows at once; the fresh Home replaces it in place.
+        .task { if model.needsRefresh { await load() } }
     }
 
     @ViewBuilder

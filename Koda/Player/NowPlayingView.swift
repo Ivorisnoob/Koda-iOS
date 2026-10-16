@@ -347,14 +347,28 @@ struct LikeButton: View {
 }
 
 /// Previous, play/pause and next, each centred in a third of the width, the same thirds
-/// the bottom bar uses, so the two rows line up.
+/// the bottom bar uses, so the two rows line up. With skip buttons on (Settings), they sit
+/// at either end, smaller, and the row is shared five ways.
 struct TransportControls: View {
+    @Environment(AppModel.self) private var app
     @Environment(Player.self) private var player
     @State private var backs = 0
     @State private var forwards = 0
+    @State private var rewinds = 0
+    @State private var advances = 0
 
     var body: some View {
+        let settings = app.settings
+        let interval = settings.skipInterval
         HStack(spacing: 0) {
+            if settings.showsSkipButtons {
+                skipButton(interval.backSymbol, label: "Back \(interval.rawValue) Seconds", size: 24, taps: rewinds) {
+                    rewinds += 1
+                    player.skip(by: -interval.seconds)
+                }
+                .frame(maxWidth: .infinity)
+                .disabled(player.phase != .ready)
+            }
             skipButton("backward.fill", label: "Previous", taps: backs) {
                 backs += 1
                 player.previous()
@@ -367,18 +381,27 @@ struct TransportControls: View {
                 player.next()
             }
             .frame(maxWidth: .infinity)
+            if settings.showsSkipButtons {
+                skipButton(interval.forwardSymbol, label: "Ahead \(interval.rawValue) Seconds", size: 24, taps: advances) {
+                    advances += 1
+                    player.skip(by: interval.seconds)
+                }
+                .frame(maxWidth: .infinity)
+                .disabled(player.phase != .ready)
+            }
         }
-        .sensoryFeedback(.impact(weight: .light), trigger: backs + forwards)
+        .sensoryFeedback(.impact(weight: .light), trigger: backs + forwards + rewinds + advances)
         .disabled(player.current == nil)
     }
 
     /// Only the pressed button answers: its own symbol bounces.
-    private func skipButton(_ symbol: String, label: String, taps: Int, action: @escaping () -> Void) -> some View {
+    private func skipButton(_ symbol: String, label: String, size: CGFloat = 32, taps: Int, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 32))
+                .font(.system(size: size))
                 .symbolEffect(.bounce.down, value: taps)
-                .frame(width: 72, height: 60)
+                // Up to 72 wide: five to a row still fits the narrowest iPhone.
+                .frame(maxWidth: 72, minHeight: 60)
         }
         .buttonStyle(TransportButtonStyle())
         .accessibilityLabel(label)

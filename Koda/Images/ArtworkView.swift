@@ -21,28 +21,32 @@ struct ArtworkView: View {
     private var url: URL? { artwork?.url(pixels: max(pixels, 120)) }
 
     var body: some View {
-        ZStack {
-            if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    // A video's thumbnail is 4:3 with the 16:9 picture letterboxed inside: enlarged
-                    // to the picture's height, the bars fall outside the square instead of edging it.
-                    .scaleEffect(isLetterboxed(image) ? 4.0 / 3.0 : 1)
-                    .transition(.opacity)
-            } else {
-                Rectangle()
-                    .fill(.quaternary)
-                    .overlay {
-                        Image(systemName: circle ? "music.mic" : "music.note")
-                            .font(.system(size: size * 0.3, weight: .medium))
-                            .foregroundStyle(.tertiary)
-                    }
+        // The frame is laid out by a plain shape; the image is an overlay cropped to it. A
+        // scaled-to-fill image laid out directly reports its own, wider size, which pushed a
+        // video's 16:9 thumbnail out past the frame's leading edge.
+        Rectangle()
+            .fill(.quaternary)
+            .overlay {
+                if image == nil {
+                    Image(systemName: circle ? "music.mic" : "music.note")
+                        .font(.system(size: size * 0.3, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                }
             }
-        }
-        .frame(width: fillsFrame ? nil : size, height: fillsFrame ? nil : size)
-        .frame(maxWidth: fillsFrame ? .infinity : nil, maxHeight: fillsFrame ? .infinity : nil)
-        .clipShape(shape)
+            .overlay {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        // A video's thumbnail is 4:3 with the 16:9 picture letterboxed inside: enlarged
+                        // to the picture's height, the bars fall outside the square instead of edging it.
+                        .scaleEffect(isLetterboxed(image) ? 4.0 / 3.0 : 1)
+                        .transition(.opacity)
+                }
+            }
+            .frame(width: fillsFrame ? nil : size, height: fillsFrame ? nil : size)
+            .frame(maxWidth: fillsFrame ? .infinity : nil, maxHeight: fillsFrame ? .infinity : nil)
+            .clipShape(shape)
         // A hairline so a white cover keeps its edge on a white page. Black, and only in light
         // mode: drawn in the primary colour it was a bright ring around dark covers in dark mode.
         .overlay {

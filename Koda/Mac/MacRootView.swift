@@ -221,7 +221,9 @@ struct MacRootView: View {
         }
         .listStyle(.sidebar)
         .environment(\.defaultMinListRowHeight, 28)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // A bar, not an inset: the system draws its scroll edge effect under it, so rows fade
+        // out beneath the glance instead of showing through its translucent card.
+        .safeAreaBar(edge: .bottom, spacing: 0) {
             VStack(spacing: 8) {
                 MacSidebarGlance(openQueue: { model.showNowPlaying(.queue) }, openStats: { section = .stats })
                 profileButton
@@ -384,8 +386,9 @@ struct MacSidebarLabel: View {
     }
 }
 
-/// What the foot of the sidebar keeps in view, as the Mac's sidebars do: the next songs in the
-/// queue, each a click away, and today's listening.
+/// What the foot of the sidebar keeps in view, as the Mac's sidebars do: the next song in the
+/// queue, a click away, and today's listening. One song keeps the foot short; Show All opens
+/// the whole queue.
 private struct MacSidebarGlance: View {
     let openQueue: () -> Void
     let openStats: () -> Void
@@ -406,8 +409,10 @@ private struct MacSidebarGlance: View {
                             .buttonStyle(.plain)
                             .foregroundStyle(Color.accentColor)
                     }
-                    ForEach(player.upcoming.prefix(3)) { item in
-                        MacUpNextRow(item: item)
+                    if let next = player.upcoming.first {
+                        MacUpNextRow(item: next)
+                            .id(next.id)
+                            .transition(.opacity)
                     }
                 }
             }
@@ -437,7 +442,7 @@ private struct MacSidebarGlance: View {
         .padding(10)
         .background(.fill.quaternary, in: .rect(cornerRadius: 12, style: .continuous))
         .padding(.horizontal, 10)
-        .animation(.smooth, value: player.upcoming.prefix(3).map(\.id))
+        .animation(.smooth, value: player.upcoming.first?.id)
     }
 }
 

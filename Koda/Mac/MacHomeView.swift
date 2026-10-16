@@ -50,10 +50,9 @@ struct MacHomeView: View {
             }
         }
         .task {
-            // Loaded already: shown as it was. After half an hour it refreshes quietly in place.
-            if model.state.value == nil || model.loadedAt.map({ Date().timeIntervalSince($0) > 1800 }) == true {
-                await load()
-            }
+            // Loaded already: shown as it was. Last launch's snapshot, or a Home half an hour
+            // old, refreshes quietly in place.
+            if model.needsRefresh { await load() }
         }
     }
 

@@ -57,6 +57,17 @@ final class AppSettings {
         var title: String { rawValue.formatted(.byteCount(style: .file)) }
     }
 
+    /// How far the skip buttons jump. Each has an SF Symbol drawing its number.
+    enum SkipInterval: Int, CaseIterable, Identifiable {
+        case five = 5, ten = 10, fifteen = 15, thirty = 30
+
+        var id: Self { self }
+        var seconds: TimeInterval { TimeInterval(rawValue) }
+        var title: String { "\(rawValue) Seconds" }
+        var backSymbol: String { "gobackward.\(rawValue)" }
+        var forwardSymbol: String { "goforward.\(rawValue)" }
+    }
+
     private let defaults = UserDefaults.standard
 
     var theme: Theme { didSet { defaults.set(theme.rawValue, forKey: Keys.theme) } }
@@ -75,6 +86,9 @@ final class AppSettings {
     var savesListeningHistory: Bool { didSet { defaults.set(savesListeningHistory, forKey: Keys.listeningHistory) } }
     var savesSearchHistory: Bool { didSet { defaults.set(savesSearchHistory, forKey: Keys.searchHistory) } }
     var cacheLimit: CacheLimit { didSet { defaults.set(cacheLimit.rawValue, forKey: Keys.cacheLimit) } }
+    /// Buttons beside previous and next that jump back or ahead within the song.
+    var showsSkipButtons: Bool { didSet { defaults.set(showsSkipButtons, forKey: Keys.skipButtons) } }
+    var skipInterval: SkipInterval { didSet { defaults.set(skipInterval.rawValue, forKey: Keys.skipInterval) } }
 
     private enum Keys {
         static let theme = "koda.theme"
@@ -88,6 +102,8 @@ final class AppSettings {
         static let listeningHistory = "koda.history.listening"
         static let searchHistory = "koda.history.search"
         static let cacheLimit = "koda.cache.limit"
+        static let skipButtons = "koda.player.skipButtons"
+        static let skipInterval = "koda.player.skipInterval"
     }
 
     init() {
@@ -105,6 +121,8 @@ final class AppSettings {
         savesListeningHistory = d.object(forKey: Keys.listeningHistory) as? Bool ?? true
         savesSearchHistory = d.object(forKey: Keys.searchHistory) as? Bool ?? true
         cacheLimit = (d.object(forKey: Keys.cacheLimit) as? Int64).flatMap(CacheLimit.init(rawValue:)) ?? .standard
+        showsSkipButtons = d.object(forKey: Keys.skipButtons) as? Bool ?? true
+        skipInterval = (d.object(forKey: Keys.skipInterval) as? Int).flatMap(SkipInterval.init(rawValue:)) ?? .ten
     }
 
     /// The services to ask, best first.

@@ -20,10 +20,20 @@ struct SettingsView: View {
                     Toggle(isOn: $player.normalizesVolume) {
                         SettingLabel("Normalize Volume", systemImage: "speaker.wave.2.fill", tint: .pink)
                     }
+                    Toggle(isOn: $settings.showsSkipButtons) {
+                        SettingLabel("Skip Buttons", systemImage: settings.skipInterval.forwardSymbol, tint: .orange)
+                    }
+                    if settings.showsSkipButtons {
+                        Picker(selection: $settings.skipInterval) {
+                            ForEach(AppSettings.SkipInterval.allCases) { Text($0.title).tag($0) }
+                        } label: {
+                            SettingLabel("Skip By", systemImage: "timer", tint: .gray)
+                        }
+                    }
                 } header: {
                     Text("Playback")
                 } footer: {
-                    Text("Autoplay keeps the music going with songs like the last one when the queue ends. Normalize Volume plays loud masters at a similar level to everything else.")
+                    Text("Autoplay keeps the music going with songs like the last one when the queue ends. Normalize Volume plays loud masters at a similar level to everything else. Skip Buttons jump back or ahead within the song from Now Playing.")
                 }
 
                 Section {
