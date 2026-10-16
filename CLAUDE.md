@@ -55,9 +55,15 @@ The optimized .ipa and .dmg come only from CI; never ship or test a local Debug 
 1. Commit and `git push origin beta`. The `Build` workflow starts on its own (about 3–5 minutes).
 2. Find the run: `gh run list --branch beta --limit 1` (check its title matches the commit).
 3. Wait for it: `gh run watch <run-id> --exit-status` (a non-zero exit means a job failed; read `gh run view <run-id> --log-failed`).
-4. Download into the Mac's Downloads folder, one folder per commit:
-   `gh run download <run-id> --dir ~/Downloads/Koda-<short-sha>`
-   This gives `Koda-<sha>/Koda.ipa` (iPhone, unsigned) and `Koda-mac-<sha>/Koda.dmg` (Mac, universal).
+4. Download and rename so Downloads holds just two short files, `Koda-<short-sha>.dmg` and `Koda-<short-sha>.ipa`.
+   gh nests each artifact in a folder named with the full SHA, so always flatten it:
+   ```sh
+   sha=$(git rev-parse --short HEAD); tmp=$(mktemp -d)
+   gh run download <run-id> --dir "$tmp"
+   mv "$tmp"/Koda-mac-*/Koda.dmg ~/Downloads/Koda-$sha.dmg   # Mac, universal
+   mv "$tmp"/Koda-[0-9a-f]*/Koda.ipa ~/Downloads/Koda-$sha.ipa # iPhone, unsigned
+   rm -r "$tmp"
+   ```
 5. Install:
    - **Mac:** open `Koda.dmg`, drag Koda to Applications (replace the old one). It's ad-hoc signed and not notarized, so the first launch needs System Settings → Privacy & Security → **Open Anyway**.
    - **iPhone:** sideload `Koda.ipa` with AltStore, SideStore or Sideloadly; they sign it with your Apple ID.
