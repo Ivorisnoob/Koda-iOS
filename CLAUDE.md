@@ -48,6 +48,22 @@ docs/                mac.md (Mac decisions and scars), lastfm.md
 - **Sidebar foot (Mac):** `MacSidebarGlance` shows the next song and today's listening, attached with `safeAreaBar` so the list gets the system scroll-edge effect under it.
 - **Persistence:** queue (`Player.persistQueue`), library JSON and audio store are flushed in `AppModel.saveState()` when the app leaves the screen.
 
+## Testing the real (Release) builds
+
+The optimized .ipa and .dmg come only from CI; never ship or test a local Debug build as the app.
+
+1. Commit and `git push origin beta`. The `Build` workflow starts on its own (about 3–5 minutes).
+2. Find the run: `gh run list --branch beta --limit 1` (check its title matches the commit).
+3. Wait for it: `gh run watch <run-id> --exit-status` (a non-zero exit means a job failed; read `gh run view <run-id> --log-failed`).
+4. Download into the Mac's Downloads folder, one folder per commit:
+   `gh run download <run-id> --dir ~/Downloads/Koda-<short-sha>`
+   This gives `Koda-<sha>/Koda.ipa` (iPhone, unsigned) and `Koda-mac-<sha>/Koda.dmg` (Mac, universal).
+5. Install:
+   - **Mac:** open `Koda.dmg`, drag Koda to Applications (replace the old one). It's ad-hoc signed and not notarized, so the first launch needs System Settings → Privacy & Security → **Open Anyway**.
+   - **iPhone:** sideload `Koda.ipa` with AltStore, SideStore or Sideloadly; they sign it with your Apple ID.
+
+Do this after every pushed change the user wants to try, and tell them the folder path.
+
 ## Checking things you can't see
 
 Add a temporary probe behind an environment variable that writes to stderr, run the Debug Catalyst build, read the output, then remove the probe before committing.
