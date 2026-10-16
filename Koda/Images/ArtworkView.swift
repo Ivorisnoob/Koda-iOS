@@ -79,7 +79,7 @@ struct ArtworkView: View {
 }
 
 /// A type-erased insettable shape, so one view can be clipped by a circle or a rounded square.
-struct AnyInsettableShape: InsettableShape {
+nonisolated struct AnyInsettableShape: InsettableShape {
     private let pathBuilder: @Sendable (CGRect) -> Path
     private let insetBuilder: @Sendable (CGFloat) -> AnyInsettableShape
 
