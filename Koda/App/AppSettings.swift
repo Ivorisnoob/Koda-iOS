@@ -89,6 +89,8 @@ final class AppSettings {
     /// Buttons beside previous and next that jump back or ahead within the song.
     var showsSkipButtons: Bool { didSet { defaults.set(showsSkipButtons, forKey: Keys.skipButtons) } }
     var skipInterval: SkipInterval { didSet { defaults.set(skipInterval.rawValue, forKey: Keys.skipInterval) } }
+    /// The playing song on the listener's Discord profile, through the Discord app on the Mac.
+    var sharesOnDiscord: Bool { didSet { defaults.set(sharesOnDiscord, forKey: Keys.discordPresence) } }
 
     private enum Keys {
         static let theme = "koda.theme"
@@ -104,6 +106,7 @@ final class AppSettings {
         static let cacheLimit = "koda.cache.limit"
         static let skipButtons = "koda.player.skipButtons"
         static let skipInterval = "koda.player.skipInterval"
+        static let discordPresence = "koda.discord.presence"
     }
 
     init() {
@@ -123,6 +126,7 @@ final class AppSettings {
         cacheLimit = (d.object(forKey: Keys.cacheLimit) as? Int64).flatMap(CacheLimit.init(rawValue:)) ?? .standard
         showsSkipButtons = d.object(forKey: Keys.skipButtons) as? Bool ?? true
         skipInterval = (d.object(forKey: Keys.skipInterval) as? Int).flatMap(SkipInterval.init(rawValue:)) ?? .ten
+        sharesOnDiscord = d.object(forKey: Keys.discordPresence) as? Bool ?? false
     }
 
     /// The services to ask, best first.

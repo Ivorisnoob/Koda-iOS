@@ -15,6 +15,8 @@ final class AppModel {
     let settings = AppSettings()
     let downloads: Downloads
     let lastFM: LastFM
+    /// The playing song on Discord; the Mac only, where the Discord app takes it from Koda directly.
+    let discord: DiscordPresence?
 
     var isNowPlayingPresented = false
     /// The panel Now Playing should show when it next opens or is already open: the Mac's
@@ -84,6 +86,10 @@ final class AppModel {
             lastFM.heard(seconds, of: item.id, artist: song.scrobbleArtist, track: song.title, album: song.album?.title ?? "",
                          duration: song.duration ?? player.duration, isVideo: song.isVideo)
         }
+        // Paused listening history keeps the song off Discord too, as it does Last.fm.
+        discord = Platform.isMac
+            ? DiscordPresence(isAllowed: { [settings] in settings.sharesOnDiscord && settings.savesListeningHistory }, player: player)
+            : nil
         if Platform.isMac, UserDefaults.standard.object(forKey: "volume") != nil {
             player.volume = UserDefaults.standard.float(forKey: "volume")
         }

@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 
 /// A part of the Mac's Settings window.
 enum MacSettingsPane: String, CaseIterable, Identifiable {
-    case profile, playback, lyrics, appearance, lastFM, privacy, storage, backup, about
+    case profile, playback, lyrics, appearance, lastFM, discord, privacy, storage, backup, about
 
     var id: Self { self }
 
@@ -16,6 +16,7 @@ enum MacSettingsPane: String, CaseIterable, Identifiable {
         case .lyrics: "Lyrics"
         case .appearance: "Appearance"
         case .lastFM: "Last.fm"
+        case .discord: "Discord"
         case .privacy: "History & Privacy"
         case .storage: "Storage"
         case .backup: "Back Up & Restore"
@@ -30,6 +31,7 @@ enum MacSettingsPane: String, CaseIterable, Identifiable {
         case .lyrics: "quote.bubble.fill"
         case .appearance: "circle.lefthalf.filled"
         case .lastFM: "dot.radiowaves.left.and.right"
+        case .discord: "bubble.left.and.bubble.right.fill"
         case .privacy: "hand.raised.fill"
         case .storage: "internaldrive.fill"
         case .backup: "arrow.up.doc.fill"
@@ -44,6 +46,7 @@ enum MacSettingsPane: String, CaseIterable, Identifiable {
         case .lyrics: .purple
         case .appearance: .blue
         case .lastFM: .red
+        case .discord: Color(red: 0.345, green: 0.396, blue: 0.949)
         case .privacy: .teal
         case .storage: .gray
         case .backup: .green
@@ -101,6 +104,7 @@ struct MacSettingsView: View {
         case .lyrics: MacLyricsPane()
         case .appearance: MacAppearancePane()
         case .lastFM: MacLastFMPane()
+        case .discord: MacDiscordPane()
         case .privacy: MacPrivacyPane()
         case .storage: MacStoragePane()
         case .backup: MacBackupPane()
@@ -414,6 +418,41 @@ private struct MacLastFMPane: View {
     }
 }
 
+private struct MacDiscordPane: View {
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        @Bindable var settings = app.settings
+        MacSettingsGroup(footer: "Your Discord profile shows “Listening to” the song, with its cover and a link to it on YouTube Music. It needs the Discord app open on this Mac, and the song leaves your profile a minute after you pause.") {
+            MacSettingsToggle(title: "Show what you're playing", isOn: $settings.sharesOnDiscord)
+            if settings.sharesOnDiscord {
+                MacSettingsRow(title: "Status", detail: detail) {
+                    Text(status).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var status: String {
+        guard app.settings.savesListeningHistory else { return "Paused" }
+        return switch app.discord?.status ?? .off {
+        case .off, .waiting: "Waiting for a song"
+        case .unavailable: "Discord isn't open"
+        case .showing: "On your profile"
+        case .refused: "Not accepted"
+        }
+    }
+
+    private var detail: String? {
+        guard app.settings.savesListeningHistory else { return "Nothing is shared while listening history is off." }
+        return switch app.discord?.status ?? .off {
+        case .unavailable: "Koda keeps looking, and shows the song once Discord opens."
+        case .refused: "Discord didn't accept this song's details."
+        default: nil
+        }
+    }
+}
+
 private struct MacPrivacyPane: View {
     @Environment(AppModel.self) private var app
     @Environment(Library.self) private var library
@@ -426,7 +465,7 @@ private struct MacPrivacyPane: View {
 
     var body: some View {
         @Bindable var settings = app.settings
-        MacSettingsGroup(footer: "With listening history off, songs you play don't reach Recently Played, Quick picks, Your Mix, your stats or Last.fm. What's saved stays until you clear it.") {
+        MacSettingsGroup(footer: "With listening history off, songs you play don't reach Recently Played, Quick picks, Your Mix, your stats, Last.fm or Discord. What's saved stays until you clear it.") {
             MacSettingsToggle(title: "Save listening history", isOn: $settings.savesListeningHistory)
             MacSettingsToggle(title: "Save search history", isOn: $settings.savesSearchHistory)
         }
