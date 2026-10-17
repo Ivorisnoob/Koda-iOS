@@ -27,7 +27,8 @@ struct DiscordActivityTests {
         #expect(card.state == "Rick Astley")
         #expect(card.stateURL == "https://music.youtube.com/channel/UCuAXFkgsw1L7xaCfnd5JJOw")
         // 13 s into a 213 s song: the bar began 13 s ago and ends in 200.
-        #expect(card.timestamps == .init(start: 1_800_000_000 - 13, end: 1_800_000_000 + 200))
+        let bar = DiscordActivity.Timestamps(start: 1_799_999_987, end: 1_800_000_200)
+        #expect(card.timestamps == bar)
         #expect(card.assets?.largeImage == "https://lh3.googleusercontent.com/abc=w1024-h1024")
         #expect(card.assets?.largeText == "Whenever You Need Somebody")
         #expect(card.buttons?.map(\.label) == ["Listen on YouTube Music", "Get Koda"])
